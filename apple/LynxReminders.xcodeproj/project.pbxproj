@@ -11,6 +11,7 @@
 		0433B76130F4698139C6F575 /* Fonts in Resources */ = {isa = PBXBuildFile; fileRef = DBE55CFE0CDC7ECAA5643FD8 /* Fonts */; };
 		048632106E3A6F3459BC4F8D /* RepeatEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B4D546D9E0CDD26D78EE4D0 /* RepeatEditor.swift */; };
 		0A474D95BD861D69A6D29E64 /* FireTriggerIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04889EF1D61376571C0914F3 /* FireTriggerIntent.swift */; };
+		0B09B9F60676B8655D30707D /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = CBEBC9FE0535C81CD51695D9 /* AppIcon.icon */; };
 		269736CED8FB0821F5792523 /* LynxCore in Frameworks */ = {isa = PBXBuildFile; productRef = 3DEBD2598D105EB0AEF3449E /* LynxCore */; };
 		2AFC28FCA38A218E25448D71 /* ReminderListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF041EF56AB2B711F731B64E /* ReminderListView.swift */; };
 		2D2E71BFDD97910636B4990F /* LynxRemindersApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D268D2BCC0EE9B648B90588 /* LynxRemindersApp.swift */; };
@@ -23,6 +24,7 @@
 		4D0DE26343F804F0375AEF00 /* SidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69A7C2C7771DC3A2FE59D668 /* SidebarView.swift */; };
 		52C1A4551F86B19D8408874F /* DemoData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2680F1BF39C3B3D98CBC2536 /* DemoData.swift */; };
 		5A60D47C74DF9D6465B808E1 /* TriggerPickers.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8D7AFC5916DD0DFD8B76BFD /* TriggerPickers.swift */; };
+		5C32A628492E5F7277C0F02A /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = CBEBC9FE0535C81CD51695D9 /* AppIcon.icon */; };
 		753EDD511BCE0F6ACFA98113 /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04B78D385C692CCB8072659C /* AppSettings.swift */; };
 		7697F9D98830E73B11224B90 /* LynxRemindersApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D268D2BCC0EE9B648B90588 /* LynxRemindersApp.swift */; };
 		82C9A101B53D48A28BAC0BCD /* RepeatEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B4D546D9E0CDD26D78EE4D0 /* RepeatEditor.swift */; };
@@ -86,6 +88,7 @@
 		AC6DDB4073983AC03BC4EF73 /* LynxReminders.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = LynxReminders.entitlements; sourceTree = "<group>"; };
 		ACA48209B8DE8276263C7A23 /* apple */ = {isa = PBXFileReference; lastKnownFileType = folder; name = apple; path = .; sourceTree = SOURCE_ROOT; };
 		C24209496A07F5E989252885 /* Supabase.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = Supabase.json; sourceTree = "<group>"; };
+		CBEBC9FE0535C81CD51695D9 /* AppIcon.icon */ = {isa = PBXFileReference; lastKnownFileType = wrapper.icon; path = AppIcon.icon; sourceTree = "<group>"; };
 		CCC648539CE78C82CEF87CF8 /* Platform.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Platform.swift; sourceTree = "<group>"; };
 		CF041EF56AB2B711F731B64E /* ReminderListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReminderListView.swift; sourceTree = "<group>"; };
 		D212C565AA0027E93F1CCFAB /* NotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationService.swift; sourceTree = "<group>"; };
@@ -192,6 +195,7 @@
 		AA40D7433CDA8ED8E627090C /* Resources */ = {
 			isa = PBXGroup;
 			children = (
+				CBEBC9FE0535C81CD51695D9 /* AppIcon.icon */,
 				5AB7537A8062607B8DE3C1EE /* Assets.xcassets */,
 				DBE55CFE0CDC7ECAA5643FD8 /* Fonts */,
 			);
@@ -309,6 +313,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				0B09B9F60676B8655D30707D /* AppIcon.icon in Resources */,
 				C2CFA8EE0F52D95A07EBDECB /* Assets.xcassets in Resources */,
 				0433B76130F4698139C6F575 /* Fonts in Resources */,
 				C00DA158FD7CA42EE3A60E66 /* Supabase.json in Resources */,
@@ -319,6 +324,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				5C32A628492E5F7277C0F02A /* AppIcon.icon in Resources */,
 				8B42FF2F9CAE0EE16442227D /* Assets.xcassets in Resources */,
 				E16BF2EA79E7723348753307 /* Fonts in Resources */,
 				35C7616994C7AFD7B2C955DF /* Supabase.json in Resources */,

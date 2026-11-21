@@ -30,6 +30,7 @@ targetTemplates:
     sources:
       - path: App/Shared
       - path: Resources/Assets.xcassets
+      - path: Resources/AppIcon.icon
       - path: Resources/Fonts
         type: folder
         buildPhase: resources
