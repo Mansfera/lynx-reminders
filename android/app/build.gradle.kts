@@ -23,7 +23,7 @@ android {
         applicationId = "com.mansfera.lynxreminders"
         minSdk = 29
         targetSdk = 36
-        versionCode = 1
+        versionCode = 2
         versionName = "0.1.0"
         buildConfigField("String", "SUPABASE_URL", "\"${supabaseProps.getProperty("supabase.url", "http://10.0.2.2:54321")}\"")
         buildConfigField("String", "SUPABASE_ANON_KEY", "\"${supabaseProps.getProperty("supabase.anonKey", "")}\"")
