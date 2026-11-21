@@ -186,7 +186,7 @@ minimum_password_length = 6
 password_requirements = ""
 
 # Passkey sign-in (SPEC §9). Passkeys belong to reminders.etherlynx.xyz, which serves the
-# passkey page for the Apple apps (web/passkey/) and assetlinks.json for Android (web/.well-known/).
+# passkey page for the Apple apps (web/public/passkey/) and assetlinks.json for Android (web/public/.well-known/).
 [auth.passkey]
 enabled = true
 

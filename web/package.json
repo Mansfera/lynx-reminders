@@ -1,0 +1,11 @@
+{
+  "name": "lynx-reminders-web",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "deploy": "cf deploy ./public"
+  },
+  "devDependencies": {
+    "cf": "^1.0.0-rc.2"
+  }
+}

@@ -109,7 +109,7 @@ the target for the simulator SDK directly (skipping only the asset catalog, whos
      container (`FileManager.containerURL(forSecurityApplicationGroupIdentifier:)`).
    - **Keychain sharing**: only if a future extension needs the session.
    - **Sign in with Apple** (SPEC §9 "later") needs the capability and a Services ID.
-   - **Associated Domains** `webcredentials:reminders.etherlynx.xyz` plus `web/.well-known/apple-app-site-association`
+   - **Associated Domains** `webcredentials:reminders.etherlynx.xyz` plus `web/public/.well-known/apple-app-site-association`
      with the team id lets passkeys use the native prompt (`ASAuthorizationPlatformPublicKeyCredentialProvider`,
      or supabase-swift's `signInWithPasskey(presentationAnchor:)`) instead of the passkey page in a browser sheet
      (SPEC §9). Existing passkeys keep working.

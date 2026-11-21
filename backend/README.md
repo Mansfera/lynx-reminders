@@ -61,7 +61,11 @@ bunx supabase@2 config push                               # review the diff, ans
 ```
 
 **Passkeys** (SPEC §9) are Supabase Auth's own: `[auth.passkey]` and `[auth.webauthn]` in
-`config.toml`, pushed with `config push`. The relying party `reminders.etherlynx.xyz` must serve
+`config.toml`. CLI 2.122.1's `config push` doesn't send them ("Remote Auth config is up to date"),
+so on the hosted project set the same values in the dashboard, **Authentication → Passkeys**:
+enabled, display name `Lynx Reminders`, RP ID `reminders.etherlynx.xyz`, origins
+`https://reminders.etherlynx.xyz,android:apk-key-hash:…` (copy from `config.toml`). Check with
+`GET /auth/v1/settings` → `"passkeys_enabled": true`. The relying party must serve
 [`web/`](../web/README.md). The local stack has the same settings, but its Auth server can't
 see real passkeys for that domain, so local builds hide passkeys (no `passkey_page`).
 

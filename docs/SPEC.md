@@ -360,8 +360,8 @@ No emoji anywhere in UI. No gradients other than the stage. No shadows except sy
   then used from the Sign in screen ("Use a passkey", secondary to the Ink pill; no email needed,
   the passkey names the account). Creating an account still starts with an email.
   * Relying party: `reminders.etherlynx.xyz` (`[auth.webauthn]` in `backend/supabase/config.toml`;
-    changing it orphans every passkey). That domain serves `web/`: the passkey page at `/passkey/`
-    and `/.well-known/assetlinks.json`.
+    changing it orphans every passkey). That domain serves `web/public/` from a Cloudflare Worker
+    (`web/README.md`): the passkey page at `/passkey/` and `/.well-known/assetlinks.json`.
   * **Android:** Credential Manager (`androidx.credentials`) with the options and results of
     `auth/v1/passkeys/{registration,authentication}/{options,verify}`. Needs `assetlinks.json`
     listing the APK's signing certificate and that certificate's `android:apk-key-hash:` origin in
