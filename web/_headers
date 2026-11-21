@@ -1,0 +1,9 @@
+# Cloudflare Pages / Netlify headers. Other hosts: serve the same Content-Type and no redirects.
+/.well-known/assetlinks.json
+  Content-Type: application/json
+  Access-Control-Allow-Origin: *
+
+/passkey/*
+  Content-Security-Policy: default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self'; connect-src https://tjpgpuhkxiqkwanulvmt.supabase.co; frame-ancestors 'none'; base-uri 'none'; form-action 'none'
+  Referrer-Policy: no-referrer
+  Cache-Control: no-cache

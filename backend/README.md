@@ -60,6 +60,11 @@ bunx supabase@2 db push --linked
 bunx supabase@2 config push                               # review the diff, answer y for auth
 ```
 
+**Passkeys** (SPEC §9) are Supabase Auth's own: `[auth.passkey]` and `[auth.webauthn]` in
+`config.toml`, pushed with `config push`. The relying party `reminders.etherlynx.xyz` must serve
+[`web/`](../web/README.md). The local stack has the same settings, but its Auth server can't
+see real passkeys for that domain, so local builds hide passkeys (no `passkey_page`).
+
 `[remotes.production]` in `config.toml` holds what differs from local: the site URL and the
 one-minute email resend floor. `pg_cron` works on the hosted project; the migration schedules
 the nightly purge itself.

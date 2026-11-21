@@ -6,6 +6,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.mansfera.lynxreminders.LynxApp
 import com.mansfera.lynxreminders.core.SmartList
+import com.mansfera.lynxreminders.remote.PasskeyCancelled
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -62,6 +63,8 @@ class AppVM(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             try {
                 block(); onDone()
+            } catch (e: PasskeyCancelled) {
+                onError("") // the user closed the passkey sheet: nothing to show
             } catch (e: Exception) {
                 onError(friendlyError(e))
             }
@@ -69,6 +72,13 @@ class AppVM(app: Application) : AndroidViewModel(app) {
     }
 
     companion object {
+        /** The Activity behind a Compose context (Credential Manager needs one to show its sheet). */
+        tailrec fun activityOf(ctx: android.content.Context): android.app.Activity = when (ctx) {
+            is android.app.Activity -> ctx
+            is android.content.ContextWrapper -> activityOf(ctx.baseContext)
+            else -> error("No activity")
+        }
+
         fun friendlyError(e: Exception): String {
             val m = e.message ?: e.javaClass.simpleName
             return when {

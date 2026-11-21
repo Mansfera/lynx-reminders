@@ -72,6 +72,9 @@ dependencies {
     implementation(libs.compose.material.icons.extended)
     debugImplementation(libs.compose.ui.tooling)
     implementation(libs.play.services.location)
+    // Passkeys (SPEC §9); the Play Services provider covers Android 9–13.
+    implementation(libs.androidx.credentials)
+    implementation(libs.androidx.credentials.play.services)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.kotlinx.serialization.json)
     implementation(platform(libs.supabase.bom))

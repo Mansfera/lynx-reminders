@@ -1,20 +1,25 @@
 import Foundation
 import LynxCore
-import Supabase
+@_spi(Experimental) import Supabase
 
-/// `Supabase.json` bundled with the app: `{ "url": "...", "anon_key": "..." }`.
+/// `Supabase.json` bundled with the app: `{ "url": "...", "anon_key": "...", "passkey_page": "..." }`.
 public struct BackendConfig: Codable, Sendable, Equatable {
     public var url: URL
     public var anonKey: String
+    /// The hosted passkey page on the WebAuthn relying party's domain (SPEC §9). Nil hides passkeys,
+    /// e.g. for the local stack, whose Auth server can't verify passkeys for that domain.
+    public var passkeyPage: URL?
 
     enum CodingKeys: String, CodingKey {
         case url
         case anonKey = "anon_key"
+        case passkeyPage = "passkey_page"
     }
 
-    public init(url: URL, anonKey: String) {
+    public init(url: URL, anonKey: String, passkeyPage: URL? = nil) {
         self.url = url
         self.anonKey = anonKey
+        self.passkeyPage = passkeyPage
     }
 
     /// Reads `Supabase.json` from the bundle; nil when it is missing or malformed (the app then stays local-only).
@@ -63,6 +68,29 @@ public final class FileSessionStorage: AuthLocalStorage, @unchecked Sendable {
 public struct SignedInUser: Sendable, Equatable {
     public var id: UUID
     public var email: String?
+}
+
+public struct PasskeyInfo: Sendable, Equatable, Identifiable {
+    public var id: UUID
+    public var name: String?
+    public var createdAt: Date
+    public var lastUsedAt: Date?
+}
+
+public enum PasskeyError: LocalizedError, Equatable {
+    /// This build has no passkey page configured.
+    case unavailable
+    /// The user went back without using a passkey.
+    case cancelled
+    case server(String)
+
+    public var errorDescription: String? {
+        switch self {
+        case .unavailable: return "Passkeys aren't set up for this server."
+        case .cancelled: return "No passkey was used."
+        case .server(let m): return m
+        }
+    }
 }
 
 public enum AuthOutcome: Sendable, Equatable {
@@ -141,6 +169,91 @@ public final class LynxBackend: Sendable {
 
     public func signOut() async {
         try? await client.auth.signOut(scope: .local)
+    }
+
+    // MARK: Passkeys (SPEC §9)
+    //
+    // Native passkeys on Apple platforms need the Associated Domains entitlement, i.e. a paid Apple
+    // developer team. Without one the app opens the passkey page on the relying party's domain in a
+    // browser sheet (ASWebAuthenticationSession); the page runs WebAuthn against Supabase Auth and
+    // hands the result back to `lynxreminders://auth-callback`. These helpers build that URL and read
+    // the callback; the UI drives the sheet.
+
+    public static let passkeyCallbackScheme = "lynxreminders"
+
+    public var supportsPasskeys: Bool { config.passkeyPage != nil }
+
+    /// URL for the passkey sign-in sheet. `state` must come back unchanged in the callback.
+    public func passkeySignInURL(state: String) throws -> URL {
+        try passkeyURL(mode: "signin", state: state, accessToken: nil)
+    }
+
+    /// URL for the "add a passkey" sheet. Carries a fresh access token in the fragment (never sent to
+    /// the web server) so the page can register the passkey for this account.
+    public func passkeyAddURL(state: String) async throws -> URL {
+        let session = try await client.auth.session
+        return try passkeyURL(mode: "add", state: state, accessToken: session.accessToken)
+    }
+
+    private func passkeyURL(mode: String, state: String, accessToken: String?) throws -> URL {
+        guard let page = config.passkeyPage,
+              var c = URLComponents(url: page, resolvingAgainstBaseURL: false)
+        else { throw PasskeyError.unavailable }
+        c.queryItems = [URLQueryItem(name: "mode", value: mode), URLQueryItem(name: "state", value: state)]
+        if let accessToken { c.fragment = "access_token=\(accessToken)" }
+        guard let url = c.url else { throw PasskeyError.unavailable }
+        return url
+    }
+
+    /// A random value tying a callback to the sheet this app opened.
+    public static func newPasskeyState() -> String {
+        UUID().uuidString.replacingOccurrences(of: "-", with: "") + UUID().uuidString.replacingOccurrences(of: "-", with: "").prefix(16)
+    }
+
+    /// Reads the sign-in callback and stores the session it carries.
+    public func completePasskeySignIn(callback: URL, state: String) async throws -> SignedInUser {
+        let fragment = try Self.checkPasskeyCallback(callback, state: state)
+        guard let access = fragment["access_token"], let refresh = fragment["refresh_token"] else {
+            throw PasskeyError.server("The passkey page didn't return a session.")
+        }
+        let s = try await client.auth.setSession(accessToken: access, refreshToken: refresh)
+        return SignedInUser(id: s.user.id, email: s.user.email)
+    }
+
+    /// Reads the "add a passkey" callback; throws when nothing was added.
+    public func completePasskeyAdd(callback: URL, state: String) throws {
+        _ = try Self.checkPasskeyCallback(callback, state: state)
+        let query = Self.items(URLComponents(url: callback, resolvingAgainstBaseURL: false)?.percentEncodedQuery)
+        guard query["added"] == "1" else { throw PasskeyError.server("No passkey was added.") }
+    }
+
+    /// Checks scheme, path and `state`; maps `error=` to an error. Returns the fragment's items.
+    static func checkPasskeyCallback(_ url: URL, state: String) throws -> [String: String] {
+        guard url.scheme == passkeyCallbackScheme, url.host == "auth-callback",
+              let c = URLComponents(url: url, resolvingAgainstBaseURL: false)
+        else { throw PasskeyError.server("Unexpected reply from the passkey page.") }
+        let query = items(c.percentEncodedQuery)
+        guard query["state"] == state else { throw PasskeyError.server("The passkey reply doesn't match this request.") }
+        if let error = query["error"] { throw error == "cancelled" ? PasskeyError.cancelled : PasskeyError.server(error) }
+        return items(c.percentEncodedFragment)
+    }
+
+    private static func items(_ s: String?) -> [String: String] {
+        var c = URLComponents()
+        c.percentEncodedQuery = s
+        var out: [String: String] = [:]
+        for item in c.queryItems ?? [] { out[item.name] = item.value ?? "" }
+        return out
+    }
+
+    public func passkeys() async throws -> [PasskeyInfo] {
+        try await client.auth.listPasskeys()
+            .map { PasskeyInfo(id: $0.id, name: $0.friendlyName, createdAt: $0.createdAt, lastUsedAt: $0.lastUsedAt) }
+            .sorted { $0.createdAt < $1.createdAt }
+    }
+
+    public func removePasskey(_ id: UUID) async throws {
+        try await client.auth.deletePasskey(id: id)
     }
 
     /// `rpc/delete_account`, then the local session goes too.

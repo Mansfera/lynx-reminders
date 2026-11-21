@@ -60,7 +60,10 @@ by the next sync.
   `StateFlow`, written debounced (300 ms) and atomically (temp file + rename). Device-only state
   (settings, snoozes, trigger cooldowns, scheduled alarm ids, registered geofences) lives in
   `files/device-state.json` and is never synced.
-* **Accounts**: email + password, email one-time code, or no account. The session is encrypted with
+* **Accounts**: email + password, email one-time code, passkey (Credential Manager, `remote/Passkeys.kt`;
+  added under Account → Passkeys, used from Sign in → *Use a passkey*), or no account. Passkeys need
+  `web/.well-known/assetlinks.json` on `reminders.etherlynx.xyz` listing the signing key, and that key's
+  `android:apk-key-hash:` origin in `rp_origins` (see `web/README.md`). The session is encrypted with
   an AES-GCM key held in the Android Keystore (`files/session.bin`, excluded from backup). Signing in
   adopts local rows (owner/creator = the new user, marked dirty). Signing out offers
   *Keep a local copy* (rows become local-only) or *Remove from this device*. Delete account calls

@@ -20,6 +20,7 @@ import com.mansfera.lynxreminders.core.SyncEngine
 import com.mansfera.lynxreminders.core.SyncState
 import com.mansfera.lynxreminders.core.adoptedBy
 import com.mansfera.lynxreminders.data.LocalStore
+import com.mansfera.lynxreminders.remote.Passkeys
 import com.mansfera.lynxreminders.remote.SupabaseRemote
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.auth.OtpType
@@ -66,6 +67,7 @@ class SyncController(
     private val onSynced: (changed: Boolean) -> Unit,
 ) {
     val remote = SupabaseRemote(client)
+    val passkeys = Passkeys(client)
     private val engine = SyncEngine(remote, store)
     private val _status = MutableStateFlow(SyncStatus(lastSyncAt = store.value.sync.lastSyncAt))
     val status: StateFlow<SyncStatus> = _status.asStateFlow()

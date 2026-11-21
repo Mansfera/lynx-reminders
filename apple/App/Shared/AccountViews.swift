@@ -1,3 +1,4 @@
+import AuthenticationServices
 import LynxCore
 import LynxSync
 import SwiftUI
@@ -88,13 +89,15 @@ struct AuthStage: View {
     }
 }
 
-/// Sign in / Create account on one screen with a capsule switch, plus "Email me a code".
+/// Sign in / Create account on one screen with a capsule switch, plus "Email me a code" and passkeys.
 struct AuthView: View {
     let onBack: (() -> Void)?
     let onDone: () -> Void
     var showMark = true
     @Environment(AppModel.self) private var model
     @Environment(\.palette) private var pal
+    @Environment(\.webAuthenticationSession) private var webAuth
+    @State private var passkeyBusy = false
 
     enum Mode: Hashable { case signIn, create, code }
     @State private var mode: Mode = .signIn
@@ -144,9 +147,13 @@ struct AuthView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             HStack(spacing: Brand.Space.l) {
-                InkPill(title: buttonTitle, busy: busy, action: submit).disabled(!canSubmit || busy)
+                InkPill(title: buttonTitle, busy: busy, action: submit).disabled(!canSubmit || busy || passkeyBusy)
                 if mode == .code && codeSent {
                     LinkButton(title: "Send again") { codeSent = false; submit() }
+                }
+                if mode == .signIn && model.backend?.supportsPasskeys == true {
+                    SoftButton(title: passkeyBusy ? "Waiting for passkey…" : "Use a passkey", symbol: "person.badge.key", action: signInWithPasskey)
+                        .disabled(busy || passkeyBusy)
                 }
             }
             if model.db.lists.values.contains(where: { !$0.isDeleted }) && !model.signedIn {
@@ -217,6 +224,28 @@ struct AuthView: View {
         }
     }
 
+    /// Opens the passkey page in a browser sheet; it signs in and hands the session back (SPEC §9).
+    private func signInWithPasskey() {
+        guard let backend = model.backend else { return }
+        passkeyBusy = true
+        message = nil
+        isError = false
+        Task {
+            defer { passkeyBusy = false }
+            do {
+                let state = LynxBackend.newPasskeyState()
+                guard let callback = try await webAuth.passkeyPage(backend.passkeySignInURL(state: state)) else { return }
+                model.signedIn(try await backend.completePasskeySignIn(callback: callback, state: state))
+                onDone()
+            } catch PasskeyError.cancelled {
+                // Went back on the page: nothing to report.
+            } catch {
+                isError = true
+                message = Self.describe(error)
+            }
+        }
+    }
+
     static func describe(_ error: Error) -> String {
         let s = error.localizedDescription
         if (error as? URLError) != nil || s.localizedCaseInsensitiveContains("could not connect") {
@@ -236,6 +265,10 @@ struct AccountSheet: View {
     @State private var confirmDelete = false
     @State private var busy = false
     @State private var error: String?
+    @Environment(\.webAuthenticationSession) private var webAuth
+    @State private var passkeys: [PasskeyInfo] = []
+    @State private var passkeyBusy = false
+    @State private var removingPasskey: PasskeyInfo?
 
     var body: some View {
         Group {
@@ -262,6 +295,7 @@ struct AccountSheet: View {
                             }
                         }
                     }
+                    if model.backend?.supportsPasskeys == true { passkeyPanel }
                     if let error { Text(error).font(Brand.caption).foregroundStyle(pal.signal) }
                     HStack {
                         SoftButton(title: "Sign out", symbol: "rectangle.portrait.and.arrow.right") { confirmSignOut = true }
@@ -271,6 +305,14 @@ struct AccountSheet: View {
                     Spacer(minLength: 0)
                 }
                 .onAppear { name = model.profile?.name ?? "" }
+                .task { await loadPasskeys() }
+                .confirmationDialog("Remove this passkey?", isPresented: Binding(get: { removingPasskey != nil }, set: { if !$0 { removingPasskey = nil } }),
+                                    titleVisibility: .visible, presenting: removingPasskey) { p in
+                    Button("Remove passkey", role: .destructive) { Task { await removePasskey(p) } }
+                    Button("Cancel", role: .cancel) {}
+                } message: { _ in
+                    Text("You can't sign in with it any more. It also stays in your password manager until you delete it there.")
+                }
                 .confirmationDialog("Sign out", isPresented: $confirmSignOut, titleVisibility: .visible) {
                     Button("Keep a local copy") { Task { await model.signOut(.keep); dismiss() } }
                     Button("Remove from this device", role: .destructive) { Task { await model.signOut(.remove); dismiss() } }
@@ -305,9 +347,66 @@ struct AccountSheet: View {
             }
         }
         #if os(macOS)
-        .frame(width: 500, height: model.user == nil ? 520 : 400)
+        .frame(width: 500, height: model.user == nil ? 520 : (model.backend?.supportsPasskeys == true ? 520 : 400))
         #endif
         .background(pal.bg)
+    }
+
+    /// Passkeys on this account, plus "Add a passkey" (SPEC §9).
+    private var passkeyPanel: some View {
+        Panel(padding: 0) {
+            VStack(spacing: 0) {
+                ForEach(passkeys) { p in
+                    FormRow(p.name ?? "Passkey", symbol: "person.badge.key") {
+                        Text("Added \(p.createdAt.formatted(date: .abbreviated, time: .omitted))")
+                            .font(Brand.mono(11, .regular)).foregroundStyle(pal.muted)
+                        LinkButton(title: "Remove", role: .destructive) { removingPasskey = p }
+                    }
+                    Hairline()
+                }
+                FormRow("Passkeys") {
+                    if passkeys.isEmpty {
+                        Text("Sign in with Face ID or Touch ID").font(Brand.caption).foregroundStyle(pal.muted)
+                            .lineLimit(2).multilineTextAlignment(.trailing)
+                    }
+                    SoftButton(title: passkeyBusy ? "Waiting…" : "Add a passkey", symbol: "plus", action: addPasskey)
+                        .disabled(passkeyBusy)
+                }
+            }
+        }
+    }
+
+    private func loadPasskeys() async {
+        guard let backend = model.backend, backend.supportsPasskeys else { return }
+        if let list = try? await backend.passkeys() { passkeys = list }
+    }
+
+    private func addPasskey() {
+        guard let backend = model.backend else { return }
+        passkeyBusy = true
+        error = nil
+        Task {
+            defer { passkeyBusy = false }
+            do {
+                let state = LynxBackend.newPasskeyState()
+                guard let callback = try await webAuth.passkeyPage(backend.passkeyAddURL(state: state)) else { return }
+                try backend.completePasskeyAdd(callback: callback, state: state)
+                await loadPasskeys()
+            } catch PasskeyError.cancelled {
+            } catch {
+                self.error = AuthView.describe(error)
+            }
+        }
+    }
+
+    private func removePasskey(_ p: PasskeyInfo) async {
+        guard let backend = model.backend else { return }
+        do {
+            try await backend.removePasskey(p.id)
+            passkeys.removeAll { $0.id == p.id }
+        } catch {
+            self.error = AuthView.describe(error)
+        }
     }
 
     private var syncText: String {
@@ -315,5 +414,19 @@ struct AccountSheet: View {
         if let e = model.syncError { return e }
         if let t = model.db.sync.lastSyncAt { return "Last synced \(Formats.time(t))" }
         return "Not synced yet"
+    }
+}
+
+extension WebAuthenticationSession {
+    /// Shows the passkey page (on the relying party's domain) in a browser sheet and returns its
+    /// `lynxreminders://auth-callback` URL; nil when the user closed the sheet. An ephemeral session
+    /// needs no cookies and skips the "wants to use … to sign in" prompt; passkeys aren't cookies.
+    func passkeyPage(_ url: URL) async throws -> URL? {
+        do {
+            return try await authenticate(using: url, callbackURLScheme: LynxBackend.passkeyCallbackScheme,
+                                          preferredBrowserSession: .ephemeral)
+        } catch let e as ASWebAuthenticationSessionError where e.code == .canceledLogin {
+            return nil
+        }
     }
 }

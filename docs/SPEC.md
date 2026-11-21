@@ -355,9 +355,29 @@ No emoji anywhere in UI. No gradients other than the stage. No shadows except sy
 
 * Supabase email + password, and email one-time code ("Email me a code") as a passwordless
   option. Sign in with Apple / Google come later (need a paid Apple account / OAuth clients).
+* **Passkeys** (WebAuthn, Supabase Auth's own passkey support; no server code of ours). A passkey
+  is added to an existing account from the Account screen ("Add a passkey", list with "Remove"),
+  then used from the Sign in screen ("Use a passkey", secondary to the Ink pill; no email needed,
+  the passkey names the account). Creating an account still starts with an email.
+  * Relying party: `reminders.etherlynx.xyz` (`[auth.webauthn]` in `backend/supabase/config.toml`;
+    changing it orphans every passkey). That domain serves `web/`: the passkey page at `/passkey/`
+    and `/.well-known/assetlinks.json`.
+  * **Android:** Credential Manager (`androidx.credentials`) with the options and results of
+    `auth/v1/passkeys/{registration,authentication}/{options,verify}`. Needs `assetlinks.json`
+    listing the APK's signing certificate and that certificate's `android:apk-key-hash:` origin in
+    `rp_origins`.
+  * **Apple (iOS, iPadOS, macOS):** native passkeys need the Associated Domains entitlement
+    (`webcredentials:reminders.etherlynx.xyz`), which only a paid Apple developer team can sign.
+    Until there is one, the apps open the passkey page in an ephemeral `ASWebAuthenticationSession`
+    sheet: `/passkey/?mode=signin&state=S` or `?mode=add&state=S#access_token=T`. The page runs
+    WebAuthn in the browser, where the domain is its own origin, and returns to
+    `lynxreminders://auth-callback?state=S` with `#access_token=…&refresh_token=…` (sign in),
+    `&added=1` (add) or `&error=…`. The app checks `state` before using the reply. The passkeys are
+    the same ones a native prompt would use later, so moving to native needs no new passkeys.
+    Builds without `passkey_page` in `Supabase.json` (e.g. the local stack) hide passkeys.
 * Screens: Welcome (stage with mark, "Continue without account" link, Ink pill "Sign in"),
-  Sign in / Create account (one screen with a capsule switch), Account (name, email, sign out,
-  delete account).
+  Sign in / Create account (one screen with a capsule switch, plus "Use a passkey"), Account
+  (name, email, passkeys, sign out, delete account).
 * Session stored in Keychain (Apple) / EncryptedSharedPreferences or DataStore + Tink (Android).
 
 ## 10. Settings

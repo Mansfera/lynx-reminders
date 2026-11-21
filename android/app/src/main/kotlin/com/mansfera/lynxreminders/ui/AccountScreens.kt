@@ -32,7 +32,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowForward
+import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.Key
 import androidx.compose.material.icons.rounded.Mail
 import androidx.compose.material.icons.rounded.Sync
 import androidx.compose.material3.AlertDialog
@@ -40,6 +42,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -65,6 +68,7 @@ import com.mansfera.lynxreminders.core.ListColors
 import com.mansfera.lynxreminders.core.ListIcons
 import com.mansfera.lynxreminders.core.LocalDb
 import com.mansfera.lynxreminders.data.Settings as LynxSettings
+import com.mansfera.lynxreminders.remote.PasskeyInfo
 import com.mansfera.lynxreminders.sync.AccountState
 import com.mansfera.lynxreminders.sync.SyncStatus
 import com.mansfera.lynxreminders.triggers.Perms
@@ -115,10 +119,11 @@ fun AuthScreen(vm: AppVM, onBack: () -> Unit, onDone: () -> Unit) {
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var info by remember { mutableStateOf<String?>(null) }
+    val ctx = LocalContext.current
 
     fun go(block: suspend () -> Unit, success: () -> Unit = onDone) {
         busy = true; error = null
-        vm.run(onError = { error = it; busy = false }, onDone = { busy = false; success() }, block = block)
+        vm.run(onError = { error = it.ifEmpty { null }; busy = false }, onDone = { busy = false; success() }, block = block)
     }
 
     // With email confirmation on, sign-up emails a code: continue on the code step to finish.
@@ -172,6 +177,15 @@ fun AuthScreen(vm: AppVM, onBack: () -> Unit, onDone: () -> Unit) {
                     }
                 }
             }
+            if (mode == "signin") {
+                // No email needed: the passkey says which account it is (SPEC §9).
+                Hairline(Modifier.padding(vertical = Sp.s10))
+                SettingRow("Use a passkey", "Face, fingerprint or screen lock instead of a password", onClick = {
+                    if (!busy) go({ vm.g.sync.passkeys.signIn(AppVM.activityOf(ctx)) })
+                }) {
+                    Icon(Icons.Rounded.Key, contentDescription = null, tint = c.ink2)
+                }
+            }
         }
     }
 }
@@ -189,6 +203,11 @@ fun AccountScreen(
     var deleteDialog by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var refresh by remember { mutableIntStateOf(0) }
+    var passkeys by remember { mutableStateOf<List<PasskeyInfo>>(emptyList()) }
+    var passkeyBusy by remember { mutableStateOf(false) }
+    var removingPasskey by remember { mutableStateOf<PasskeyInfo?>(null) }
+    fun loadPasskeys() = vm.run { passkeys = vm.g.sync.passkeys.list() }
+    LaunchedEffect(account.userId, account.needsSignIn) { if (account.userId != null && !account.needsSignIn) loadPasskeys() }
     // Re-read permission state when coming back from system settings
     val owner = LocalLifecycleOwner.current
     DisposableEffect(owner) {
@@ -297,6 +316,32 @@ fun AccountScreen(
                 }
             }
 
+            if (account.userId != null && !account.needsSignIn) {
+                SectionLabel("Passkeys")
+                Panel(padding = 0.dp) {
+                    for (p in passkeys) {
+                        SettingRow(p.name ?: "Passkey", "Added " + Fmt.dayWord(p.createdAt.atZone(Fmt.zone).toLocalDate(), java.time.LocalDate.now()).let { if (it == "Today" || it == "Yesterday") it.lowercase() else it }) {
+                            TextAction("Remove", color = c.signal) { removingPasskey = p }
+                        }
+                        Hairline()
+                    }
+                    SettingRow(
+                        if (passkeyBusy) "Waiting for passkey…" else "Add a passkey",
+                        if (passkeys.isEmpty()) "Sign in with your face, fingerprint or screen lock instead of a password" else null,
+                        onClick = {
+                            if (!passkeyBusy) {
+                                passkeyBusy = true; error = null
+                                vm.run(onError = { error = it.ifEmpty { null }; passkeyBusy = false }, onDone = { passkeyBusy = false; loadPasskeys() }) {
+                                    vm.g.sync.passkeys.add(AppVM.activityOf(ctx))
+                                }
+                            }
+                        },
+                    ) {
+                        Icon(Icons.Rounded.Add, contentDescription = null, tint = c.ink2)
+                    }
+                }
+            }
+
             if (account.userId != null) {
                 SectionLabel("Account")
                 Panel(padding = 0.dp) {
@@ -320,6 +365,20 @@ fun AccountScreen(
                 "Cancel" to { signOutDialog = false },
                 "Remove from this device" to { signOutDialog = false; vm.run(onError = { error = it }) { vm.g.sync.signOut(keepLocal = false) } },
                 "Keep a local copy" to { signOutDialog = false; vm.run(onError = { error = it }) { vm.g.sync.signOut(keepLocal = true) } },
+            ),
+        )
+    }
+    removingPasskey?.let { p ->
+        LynxDialog(
+            title = "Remove passkey?",
+            text = "You can't sign in with it any more. It stays in your password manager until you delete it there.",
+            onDismiss = { removingPasskey = null },
+            actions = listOf(
+                "Cancel" to { removingPasskey = null },
+                "Remove" to {
+                    removingPasskey = null
+                    vm.run(onError = { error = it }, onDone = { loadPasskeys() }) { vm.g.sync.passkeys.remove(p.id) }
+                },
             ),
         )
     }

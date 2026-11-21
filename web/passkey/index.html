@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<meta name="referrer" content="no-referrer">
+<title>Lynx Reminders passkey</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600&display=swap" rel="stylesheet">
+<!--
+  Passkey page for the Lynx Reminders Apple apps (SPEC §9). Served at
+  https://reminders.etherlynx.xyz/passkey/ — the WebAuthn relying party — and opened by the apps in an
+  ASWebAuthenticationSession sheet, because native passkeys on Apple platforms need an Associated
+  Domains entitlement (a paid Apple developer team).
+
+  ?mode=signin&state=S              → passkey assertion → lynxreminders://auth-callback?state=S#access_token=…&refresh_token=…
+  ?mode=add&state=S#access_token=T  → passkey registration for the user of T → lynxreminders://auth-callback?state=S&added=1
+  Any failure the user gives up on   → lynxreminders://auth-callback?state=S&error=…
+
+  Supabase Auth checks the assertion/attestation (origin, rp id, challenge) and mints the session.
+-->
+<style>
+  :root {
+    --bg: #FFFFFF; --fg: #0E0E10; --ink2: #3A3D45; --muted: #6A6F7C; --line: rgba(14,14,16,.12);
+    --signal: #E8271E; --pill: #0E0E10; --pill-fg: #FFFFFF;
+    --stage: linear-gradient(160deg, #A9B3C6 0%, #C9D0DC 45%, #EEF0F3 100%);
+    color-scheme: light dark;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #101012; --fg: #FFFFFF; --ink2: rgba(255,255,255,.78); --muted: rgba(255,255,255,.55);
+      --line: rgba(255,255,255,.10); --signal: #FF453A; --pill: #FFFFFF; --pill-fg: #0E0E10;
+      --stage: radial-gradient(120% 90% at 50% 100%, #2A2D35 0%, #0E0E10 100%);
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; min-height: 100%; }
+  body {
+    background: var(--bg); color: var(--fg);
+    font: 400 15px/1.45 Onest, -apple-system, system-ui, sans-serif;
+    display: grid; place-items: center; min-height: 100vh; padding: 16px;
+  }
+  .stage {
+    width: 100%; max-width: 440px; border-radius: 28px; background: var(--stage);
+    padding: 24px; display: flex; flex-direction: column; gap: 18px;
+  }
+  .mark {
+    width: 48px; height: 48px; background: var(--fg);
+    -webkit-mask: url(lynx.svg) center / contain no-repeat; mask: url(lynx.svg) center / contain no-repeat;
+  }
+  h1 { margin: 24px 0 0; font-weight: 600; font-size: 34px; line-height: 1.05; letter-spacing: -1px; }
+  p { margin: 0; color: var(--ink2); font-size: 14px; max-width: 34ch; }
+  #status.error { color: var(--signal); }
+  .actions { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; margin-top: 6px; }
+  .pill {
+    appearance: none; border: 0; cursor: pointer; font: 500 14px Onest, -apple-system, system-ui, sans-serif;
+    background: var(--pill); color: var(--pill-fg); border-radius: 999px;
+    padding: 6px 6px 6px 18px; display: inline-flex; align-items: center; gap: 12px;
+  }
+  .pill[disabled] { opacity: .45; cursor: default; }
+  .pill .glyph {
+    width: 28px; height: 28px; border-radius: 50%; background: var(--pill-fg); color: var(--pill);
+    display: grid; place-items: center;
+  }
+  .link {
+    appearance: none; border: 0; background: none; padding: 0; cursor: pointer;
+    font: 400 13.5px Onest, -apple-system, system-ui, sans-serif; color: var(--ink2);
+    text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px;
+  }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main class="stage">
+  <div class="mark" role="img" aria-label="Lynx Reminders"></div>
+  <h1 id="title">Sign in with a passkey</h1>
+  <p id="status" role="status" aria-live="polite">Use the passkey you added to your Lynx account.</p>
+  <div class="actions">
+    <button class="pill" id="go" type="button">
+      <span id="go-label">Continue</span>
+      <span class="glyph" aria-hidden="true">
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6h8M6.5 2.5 10 6l-3.5 3.5"/></svg>
+      </span>
+    </button>
+    <button class="link" id="back" type="button">Back to Lynx Reminders</button>
+  </div>
+</main>
+<script>
+"use strict";
+const SUPABASE_URL = "https://tjpgpuhkxiqkwanulvmt.supabase.co";
+// The anon (public) key, the same one the apps ship with.
+const ANON_KEY = "sb_publishable_2txNQapWrzJJ51p7hyesaw_2ZHDtprQ";
+const RETURN_URL = "lynxreminders://auth-callback";
+
+const q = new URLSearchParams(location.search);
+const mode = q.get("mode") === "add" ? "add" : "signin";
+const state = /^[A-Za-z0-9_-]{8,64}$/.test(q.get("state") || "") ? q.get("state") : null;
+const accessToken = new URLSearchParams(location.hash.slice(1)).get("access_token");
+// Keep the token out of the address bar and history.
+if (location.hash) history.replaceState(null, "", location.pathname + location.search);
+
+const $ = (id) => document.getElementById(id);
+const go = $("go");
+
+function setStatus(text, isError) {
+  $("status").textContent = text;
+  $("status").classList.toggle("error", !!isError);
+}
+
+function finish(params, fragment) {
+  const u = new URL(RETURN_URL);
+  u.searchParams.set("state", state);
+  for (const [k, v] of Object.entries(params)) u.searchParams.set(k, v);
+  if (fragment) u.hash = new URLSearchParams(fragment).toString();
+  location.href = u.toString();
+}
+
+// ---- base64url <-> ArrayBuffer (for browsers without the WebAuthn JSON helpers) ----
+function b64uToBuf(s) {
+  s = s.replace(/-/g, "+").replace(/_/g, "/");
+  while (s.length % 4) s += "=";
+  const bin = atob(s);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out.buffer;
+}
+function bufToB64u(buf) {
+  const bytes = new Uint8Array(buf);
+  let s = "";
+  for (const b of bytes) s += String.fromCharCode(b);
+  return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+const withIds = (list) => (list || []).map((c) => ({ ...c, id: b64uToBuf(c.id) }));
+
+function creationOptions(json) {
+  if (PublicKeyCredential.parseCreationOptionsFromJSON) return PublicKeyCredential.parseCreationOptionsFromJSON(json);
+  return { ...json, challenge: b64uToBuf(json.challenge), user: { ...json.user, id: b64uToBuf(json.user.id) },
+           excludeCredentials: withIds(json.excludeCredentials) };
+}
+function requestOptions(json) {
+  if (PublicKeyCredential.parseRequestOptionsFromJSON) return PublicKeyCredential.parseRequestOptionsFromJSON(json);
+  return { ...json, challenge: b64uToBuf(json.challenge), allowCredentials: withIds(json.allowCredentials) };
+}
+function credentialJSON(cred) {
+  try { if (typeof cred.toJSON === "function") return cred.toJSON(); } catch (_) { /* fall through */ }
+  const r = cred.response;
+  const response = { clientDataJSON: bufToB64u(r.clientDataJSON) };
+  if (r.attestationObject) {
+    response.attestationObject = bufToB64u(r.attestationObject);
+    if (r.getTransports) response.transports = r.getTransports();
+  } else {
+    response.authenticatorData = bufToB64u(r.authenticatorData);
+    response.signature = bufToB64u(r.signature);
+    if (r.userHandle) response.userHandle = bufToB64u(r.userHandle);
+  }
+  return { id: cred.id, rawId: bufToB64u(cred.rawId), type: cred.type,
+           authenticatorAttachment: cred.authenticatorAttachment || undefined,
+           clientExtensionResults: cred.getClientExtensionResults(), response };
+}
+
+// ---- Supabase Auth passkey endpoints ----
+async function auth(path, body, token) {
+  const headers = { apikey: ANON_KEY, "Content-Type": "application/json" };
+  if (token) headers.Authorization = "Bearer " + token;
+  const res = await fetch(SUPABASE_URL + "/auth/v1/" + path, {
+    method: "POST", headers, body: JSON.stringify(body || {}),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const e = new Error(data.msg || data.message || data.error_description || data.error || ("Error " + res.status));
+    e.server = true;
+    throw e;
+  }
+  return data;
+}
+
+async function signIn() {
+  const start = await auth("passkeys/authentication/options");
+  const cred = await navigator.credentials.get({ publicKey: requestOptions(start.options.publicKey || start.options) });
+  setStatus("Checking your passkey…");
+  const res = await auth("passkeys/authentication/verify", { challenge_id: start.challenge_id, credential: credentialJSON(cred) });
+  const s = res.session || res;
+  if (!s.access_token || !s.refresh_token) throw Object.assign(new Error("The server didn't return a session."), { server: true });
+  setStatus("Signed in. Returning to Lynx Reminders…");
+  finish({}, { access_token: s.access_token, refresh_token: s.refresh_token, expires_in: String(s.expires_in || ""), token_type: "bearer" });
+}
+
+async function addPasskey() {
+  const start = await auth("passkeys/registration/options", {}, accessToken);
+  const cred = await navigator.credentials.create({ publicKey: creationOptions(start.options.publicKey || start.options) });
+  setStatus("Saving your passkey…");
+  await auth("passkeys/registration/verify", { challenge_id: start.challenge_id, credential: credentialJSON(cred) }, accessToken);
+  setStatus("Passkey added. Returning to Lynx Reminders…");
+  finish({ added: "1" });
+}
+
+let running = false;
+async function run() {
+  if (running) return;
+  running = true;
+  go.disabled = true;
+  setStatus(mode === "add" ? "Follow your device's prompt to create the passkey." : "Follow your device's prompt to use your passkey.");
+  try {
+    await (mode === "add" ? addPasskey() : signIn());
+  } catch (e) {
+    go.disabled = false;
+    $("go-label").textContent = "Try again";
+    if (e.name === "NotAllowedError" || e.name === "AbortError") {
+      setStatus(mode === "add" ? "No passkey was created. Try again when you're ready." : "No passkey was used. Try again, or go back and sign in with your email.");
+    } else if (e.name === "InvalidStateError") {
+      setStatus("This device already has a passkey for your account.", true);
+    } else {
+      setStatus(e.server ? e.message : "Something went wrong: " + e.message, true);
+    }
+  } finally {
+    running = false;
+  }
+}
+
+$("back").addEventListener("click", () => state ? finish({ error: "cancelled" }) : history.back());
+go.addEventListener("click", run);
+
+if (mode === "add") {
+  $("title").textContent = "Add a passkey";
+  $("status").textContent = "Next time, sign in with Face ID, Touch ID or your device's screen lock instead of a password.";
+}
+if (!window.PublicKeyCredential) {
+  go.disabled = true;
+  setStatus("This browser can't use passkeys.", true);
+} else if (!state || (mode === "add" && !accessToken)) {
+  go.disabled = true;
+  setStatus("Open this page from Lynx Reminders: Sign in, or Account → Add a passkey.", true);
+} else {
+  // Browsers that need a tap before showing the passkey prompt reject this; the button then does it.
+  run();
+}
+</script>
+</body>
+</html>
