@@ -18,9 +18,12 @@ done
 
 # Version bump: build numbers count from the last commit. A rerun after a failed publish finds
 # "Release $V" already committed and reuses it instead of bumping twice.
+VERSION_FILES=(apple/project.yml apple/LynxReminders.xcodeproj/project.pbxproj android/app/build.gradle.kts)
 if [ "$(git log -1 --format=%s)" = "Release $V" ]; then
     echo "Release $V is already committed: rebuilding and publishing it."
 else
+    # If anything fails before the release commit, put the version files back so a rerun starts clean.
+    trap 'git checkout -- "${VERSION_FILES[@]}" 2>/dev/null && echo "Stopped before the release commit: version bump undone."' EXIT
     BUILD=$(( $(sed -n 's/.*CURRENT_PROJECT_VERSION: "\([0-9]*\)".*/\1/p' apple/project.yml) + 1 ))
     CODE=$(( $(sed -n 's/.*versionCode = \([0-9]*\).*/\1/p' android/app/build.gradle.kts) + 1 ))
     sed -i '' -e "s/MARKETING_VERSION: \".*\"/MARKETING_VERSION: \"$V\"/" \
@@ -56,9 +59,11 @@ cp android/app/build/outputs/apk/debug/app-debug.apk "$APK"
 cat dist/SHA256SUMS.txt
 
 if [ "$(git log -1 --format=%s)" != "Release $V" ]; then
-    echo "Committing the version bump: touch your YubiKey when it blinks."
-    git add apple/project.yml apple/LynxReminders.xcodeproj/project.pbxproj android/app/build.gradle.kts
+    # The signing touch times out after a few seconds, and the builds before it take minutes.
+    read -r -p "Builds done. Press Enter, then touch your YubiKey when it blinks to sign the release commit. "
+    git add "${VERSION_FILES[@]}"
     git commit -m "Release $V"
+    trap - EXIT
 fi
 git push
 
