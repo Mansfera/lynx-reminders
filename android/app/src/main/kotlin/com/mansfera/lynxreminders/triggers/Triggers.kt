@@ -220,7 +220,7 @@ class AppWatchService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val n: Notification = NotificationCompat.Builder(this, Channels.WATCH)
-            .setSmallIcon(R.drawable.ic_stat_lynx)
+            .setSmallIcon(R.drawable.ic_stat_etherlynx)
             .setContentTitle("Watching for app triggers")
             .setContentText("Reminders fire when you open the apps you picked")
             .setPriority(NotificationCompat.PRIORITY_MIN)

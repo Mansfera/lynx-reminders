@@ -86,7 +86,7 @@ fun WelcomeScreen(onSignIn: () -> Unit, onContinue: () -> Unit) {
         Stage(Modifier.weight(1f)) {
             Spacer(Modifier.weight(1f))
             Image(
-                painterResource(R.drawable.lynx_mark), "Lynx mark",
+                painterResource(R.drawable.etherlynx_mark), "Etherlynx mark",
                 colorFilter = ColorFilter.tint(c.fg),
                 modifier = Modifier.fillMaxWidth(0.62f).aspectRatio(1f).align(Alignment.CenterHorizontally),
             )

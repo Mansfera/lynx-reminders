@@ -137,7 +137,7 @@ object Notifier {
         }
         val content = PendingIntent.getActivity(context, r.id.hashCode(), open, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
         val n = NotificationCompat.Builder(context, Channels.REMINDERS)
-            .setSmallIcon(R.drawable.ic_stat_lynx)
+            .setSmallIcon(R.drawable.ic_stat_etherlynx)
             .setContentTitle(r.title.ifBlank { "Reminder" })
             .setContentText(text)
             .setCategory(NotificationCompat.CATEGORY_REMINDER)

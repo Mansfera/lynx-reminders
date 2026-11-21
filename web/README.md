@@ -6,7 +6,7 @@ Static files for passkey sign-in (SPEC §9). Passkeys are bound to the domain
 
 | path | for | what |
 |---|---|---|
-| `/passkey/` (`passkey/index.html`, `passkey/lynx.svg`) | iOS, iPadOS, macOS | The passkey page. The apps open it in a browser sheet (`ASWebAuthenticationSession`), it runs the passkey prompt and returns the session to `lynxreminders://auth-callback`. |
+| `/passkey/` (`passkey/index.html`, `passkey/etherlynx.svg`) | iOS, iPadOS, macOS | The passkey page. The apps open it in a browser sheet (`ASWebAuthenticationSession`), it runs the passkey prompt and returns the session to `lynxreminders://auth-callback`. |
 | `/.well-known/assetlinks.json` | Android | Lets the app `com.mansfera.lynxreminders` use passkeys for this domain (Credential Manager). |
 
 Any static host with HTTPS works (Cloudflare Pages, Netlify, Caddy/nginx). Requirements:

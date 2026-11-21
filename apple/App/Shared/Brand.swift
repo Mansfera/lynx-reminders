@@ -413,10 +413,10 @@ struct SunkField: View {
     }
 }
 
-/// The lynx mark (shared/marks/lynx-ink.svg), as a template so it follows the ink color.
-struct LynxMark: View {
+/// The Etherlynx Studio griffin (shared/marks/etherlynx-griffin.svg), as a template so it follows the ink color.
+struct EtherlynxMark: View {
     var body: some View {
-        Image("LynxMark").renderingMode(.template).resizable().aspectRatio(contentMode: .fit)
+        Image("EtherlynxMark").renderingMode(.template).resizable().aspectRatio(contentMode: .fit)
             .accessibilityHidden(true)
     }
 }

@@ -39,7 +39,7 @@ struct WelcomeView: View {
         VStack(spacing: Brand.Space.xl) {
             Stage(padding: Brand.Space.xxl) {
                 VStack(alignment: .leading, spacing: Brand.Space.xl) {
-                    LynxMark().frame(width: 64, height: 64).foregroundStyle(pal.fg)
+                    EtherlynxMark().frame(width: 64, height: 64).foregroundStyle(pal.fg)
                     VStack(alignment: .leading, spacing: Brand.Space.s) {
                         Text("Lynx Reminders").font(Brand.display(40)).tracking(-1.2)
                         Text("Reminders that find you: at a time, every 45 minutes between nine and six, when you leave home, when your headphones connect.")
@@ -70,7 +70,7 @@ struct AuthStage: View {
     var body: some View {
         Stage(padding: Brand.Space.xxl) {
             VStack(alignment: .leading, spacing: Brand.Space.xl) {
-                LynxMark().frame(width: 56, height: 56).foregroundStyle(pal.fg)
+                EtherlynxMark().frame(width: 56, height: 56).foregroundStyle(pal.fg)
                 Spacer(minLength: Brand.Space.xxl)
                 Text("One account,\nevery device.").font(Brand.display(34)).tracking(-1)
                 VStack(alignment: .leading, spacing: Brand.Space.s) {
@@ -120,7 +120,7 @@ struct AuthView: View {
                     .buttonStyle(.plain).accessibilityLabel("Back")
                 }
                 Spacer()
-                if showMark { LynxMark().frame(width: 28, height: 28).foregroundStyle(pal.fg) }
+                if showMark { EtherlynxMark().frame(width: 28, height: 28).foregroundStyle(pal.fg) }
             }
             VStack(alignment: .leading, spacing: Brand.Space.s) {
                 Text(mode == .create ? "Create your account" : "Sign in").font(Brand.display(28)).tracking(-0.8)
