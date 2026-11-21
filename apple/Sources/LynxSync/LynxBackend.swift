@@ -372,6 +372,7 @@ public final class RealtimeHandle: Sendable {
 }
 
 /// Maps SDK errors to `RemoteError` so the sync engine can tell RLS rejects, auth and network apart.
+@discardableResult
 func mapErrors<T>(_ body: () async throws -> T) async throws -> T {
     do {
         return try await body()
