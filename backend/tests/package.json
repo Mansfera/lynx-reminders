@@ -1,0 +1,7 @@
+{
+  "name": "lynx-reminders-backend-tests",
+  "private": true,
+  "type": "module",
+  "scripts": { "test": "node --test --test-concurrency=1 rls.test.mjs" },
+  "dependencies": { "@supabase/supabase-js": "2.119.0" }
+}

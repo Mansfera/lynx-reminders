@@ -1,0 +1,21 @@
+.DS_Store
+# Apple
+apple/build/
+apple/.build/
+apple/DerivedData/
+*.xcuserstate
+xcuserdata/
+*.app
+# Android
+android/.gradle/
+android/build/
+android/*/build/
+android/local.properties
+android/.kotlin/
+# Backend
+backend/supabase/.branches/
+backend/supabase/.temp/
+node_modules/
+# Local backend overrides (see apple/README.md, android/README.md)
+apple/Config/Supabase.local*.json
+android/supabase.local*.properties
