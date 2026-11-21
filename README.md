@@ -26,4 +26,8 @@ On top of what Apple Reminders does (dates, repeats, location, lists, subtasks, 
 Changing a repeat rule: edit `shared/reference/recurrence.py`, run it to regenerate
 `shared/vectors/recurrence.json`, then make both clients' tests pass again.
 
+Releasing: `./release.sh 0.2.0` bumps both apps' versions, builds the macOS DMG and the Android
+APK against the hosted backend, commits and pushes the bump, and publishes a GitHub release with
+both files. Downloads are on the [releases page](https://github.com/Mansfera/lynx-reminders/releases).
+
 Designed and developed by [Etherlynx Studio](https://etherlynx.xyz/) and [Ihor Kharkholyuk](https://kharkholy.uk). Made with Claude.
