@@ -238,6 +238,7 @@ struct CapsuleTabs<T: Hashable>: View {
     let items: [(T, String)]
     @Binding var selection: T
     @Environment(\.palette) private var pal
+    @Namespace private var capsule
     var body: some View {
         HStack(spacing: 2) {
             ForEach(items, id: \.0) { item in
@@ -246,13 +247,17 @@ struct CapsuleTabs<T: Hashable>: View {
                     Text(item.1)
                         .font(Brand.text(12.5, .medium))
                         .padding(.horizontal, 13).padding(.vertical, 7)
-                        .background(on ? pal.fg : .clear, in: Capsule())
+                        .background {
+                            // One ink capsule that slides to the selected tab.
+                            if on { Capsule().fill(pal.fg).matchedGeometryEffect(id: "selected", in: capsule) }
+                        }
                         .foregroundStyle(on ? pal.bg : pal.muted)
                         .contentShape(Capsule())
                 }
                 .buttonStyle(.plain)
             }
         }
+        .animation(Motion.content, value: selection)
     }
 }
 
@@ -311,13 +316,15 @@ struct Checkbox: View {
             ZStack {
                 Circle().strokeBorder(c, lineWidth: 1.5)
                 if checked {
-                    Circle().fill(c)
+                    Circle().fill(c).transition(.scale(scale: 0.4).combined(with: .opacity))
                     Image(systemName: "checkmark").font(.system(size: 10, weight: .bold)).foregroundStyle(pal.onColor(color))
+                        .transition(.scale(scale: 0.6).combined(with: .opacity))
                 } else if pulse {
                     Circle().fill(c.opacity(pulsing ? 0.28 : 0.08))
                 }
             }
             .frame(width: 20, height: 20)
+            .animation(Motion.tap, value: checked)
             .contentShape(Circle())
         }
         .buttonStyle(.plain)
@@ -447,4 +454,51 @@ struct Caption: View {
     var body: some View {
         Text(text).font(Brand.text(11, .medium)).foregroundStyle(pal.muted)
     }
+}
+
+// MARK: - Motion
+
+/// Motion tokens, the same values as Android's `Motion`: quick and calm, no bounce. Things arriving decelerate,
+/// things leaving accelerate. Reduce Motion keeps the fades and drops the movement.
+enum Motion {
+    static let micro = 0.16, screen = 0.26, sheet = 0.30, stagger = 0.04
+
+    static func enter(_ duration: Double = screen) -> Animation { .timingCurve(0.2, 0, 0, 1, duration: duration) }
+    static func exit(_ duration: Double = screen) -> Animation { .timingCurve(0.3, 0, 1, 1, duration: duration) }
+    /// Rows, counts and selection moving inside a screen.
+    static let content = enter(screen)
+    static let tap = enter(micro)
+
+    /// A screen moving sideways: `edge` is where it comes from and goes back to.
+    static func slide(_ edge: HorizontalEdge, distance: CGFloat = 24, reduce: Bool) -> AnyTransition {
+        guard !reduce else { return .opacity }
+        let x = edge == .leading ? -distance : distance
+        return .opacity.combined(with: .offset(x: x))
+    }
+
+    /// The first screen after onboarding or sign-in settling in.
+    static func settle(reduce: Bool) -> AnyTransition {
+        reduce ? .opacity : .asymmetric(insertion: .opacity.combined(with: .scale(scale: 0.98)), removal: .opacity)
+    }
+}
+
+private struct Entrance: ViewModifier {
+    let order: Int
+    @Environment(\.accessibilityReduceMotion) private var reduce
+    @State private var shown = false
+
+    func body(content: Content) -> some View {
+        content
+            .opacity(shown ? 1 : 0)
+            .offset(y: shown || reduce ? 0 : 12)
+            .onAppear {
+                guard !shown else { return }
+                withAnimation(Motion.enter(0.42).delay(Double(order) * Motion.stagger)) { shown = true }
+            }
+    }
+}
+
+extension View {
+    /// Opening-screen entrance: rises 12 pt and fades in; `order` staggers siblings by `Motion.stagger`.
+    func entrance(_ order: Int = 0) -> some View { modifier(Entrance(order: order)) }
 }

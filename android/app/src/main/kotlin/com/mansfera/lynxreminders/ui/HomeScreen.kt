@@ -42,6 +42,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -93,17 +94,18 @@ fun HomeScreen(
             contentPadding = androidx.compose.foundation.layout.PaddingValues(start = Sp.s14, end = Sp.s14, bottom = Sp.s24),
             verticalArrangement = Arrangement.spacedBy(Sp.s10),
         ) {
-            item {
-                Row(Modifier.fillMaxWidth().statusBarsPadding().padding(top = Sp.s6), verticalAlignment = Alignment.CenterVertically) {
+            item(key = "top") {
+                Row(itemMotion().fillMaxWidth().statusBarsPadding().padding(top = Sp.s6), verticalAlignment = Alignment.CenterVertically) {
                     SearchPill(Modifier.weight(1f)) { onOpen(Route.Search) }
                     RoundIconButton(if (signedIn) Icons.Rounded.Person else Icons.Rounded.PersonOutline, "Account and settings") { onOpen(Route.Account) }
                 }
             }
-            if (banner != null) item { banner() }
-            item { TodayStage(db, now, zone) { onOpen(Route.Smart(SmartList.TODAY)) } }
-            item { StatsGrid(counts, selected) { onOpen(Route.Smart(it)) } }
-            item {
-                Panel(padding = 0.dp) {
+            // The notice fades in or out and everything below glides to make room.
+            if (banner != null) item(key = "banner") { Box(itemMotion()) { banner() } }
+            item(key = "today") { TodayStage(db, now, zone, itemMotion()) { onOpen(Route.Smart(SmartList.TODAY)) } }
+            item(key = "stats") { StatsGrid(counts, selected, itemMotion()) { onOpen(Route.Smart(it)) } }
+            item(key = "smart") {
+                Panel(itemMotion(), padding = 0.dp) {
                     val rows = buildList {
                         add(Triple(SmartList.GOALS, Icons.Rounded.DonutLarge, counts[SmartList.GOALS] ?: 0))
                         if (signedIn) {
@@ -119,35 +121,40 @@ fun HomeScreen(
                 }
             }
             val mine = SmartLists.myLists(db)
-            item {
-                Row(Modifier.fillMaxWidth().padding(top = Sp.s6), verticalAlignment = Alignment.CenterVertically) {
+            item(key = "mine-title") {
+                Row(itemMotion().fillMaxWidth().padding(top = Sp.s6), verticalAlignment = Alignment.CenterVertically) {
                     Text("My lists", style = LynxType.title, color = c.fg, modifier = Modifier.weight(1f).padding(start = Sp.s4))
                     if (mine.size > 1) TextAction(if (reorder) "Done" else "Reorder", color = c.muted) { reorder = !reorder }
                     TextAction("New list") { onOpen(Route.ListEdit(null)) }
                 }
             }
-            item {
+            item(key = "mine") {
                 if (mine.isEmpty()) {
                     val note = if (SmartLists.sharedLists(db).isNotEmpty()) "Lists only you use appear here." else "No lists yet. Reminders you add go to a list called Reminders."
-                    Panel { Text(note, style = LynxType.body, color = c.muted) }
+                    Panel(itemMotion()) { Text(note, style = LynxType.body, color = c.muted) }
                 } else {
-                    Panel(padding = 0.dp) {
+                    Panel(itemMotion(), padding = 0.dp) {
                         mine.forEachIndexed { i, l ->
-                            if (i > 0) Hairline(Modifier.padding(start = 58.dp))
-                            ListNavRow(
-                                name = l.name, color = c.listColor(l.color), icon = l.icon, count = SmartLists.openCount(db, l.id),
-                                selected = selected == Route.ListR(l.id), avatars = emptyList(),
-                                reorder = if (reorder) ({ up: Boolean -> onMoveList(l.id, up) }) else null,
-                            ) { onOpen(Route.ListR(l.id)) }
+                            // Keyed and gliding, so Reorder moves the row instead of swapping names in place.
+                            key(l.id) {
+                                Column(Modifier.animatePlacement()) {
+                                    if (i > 0) Hairline(Modifier.padding(start = 58.dp))
+                                    ListNavRow(
+                                        name = l.name, color = c.listColor(l.color), icon = l.icon, count = SmartLists.openCount(db, l.id),
+                                        selected = selected == Route.ListR(l.id), avatars = emptyList(),
+                                        reorder = if (reorder) ({ up: Boolean -> onMoveList(l.id, up) }) else null,
+                                    ) { onOpen(Route.ListR(l.id)) }
+                                }
+                            }
                         }
                     }
                 }
             }
             val shared = SmartLists.sharedLists(db)
             if (shared.isNotEmpty()) {
-                item { Text("Shared lists", style = LynxType.title, color = c.fg, modifier = Modifier.padding(start = Sp.s4, top = Sp.s12)) }
-                item {
-                    Panel(padding = 0.dp) {
+                item(key = "shared-title") { Text("Shared lists", style = LynxType.title, color = c.fg, modifier = itemMotion().padding(start = Sp.s4, top = Sp.s12)) }
+                item(key = "shared") {
+                    Panel(itemMotion(), padding = 0.dp) {
                         shared.forEachIndexed { i, l ->
                             if (i > 0) Hairline(Modifier.padding(start = 58.dp))
                             val people = db.membersOf(l.id).filter { it.userId != db.me }.map { it.profile?.displayName ?: it.profile?.email }
@@ -183,7 +190,7 @@ fun SearchPill(modifier: Modifier = Modifier, onClick: () -> Unit) {
 
 /** Today stage: big open-today count, the 24 h day ruler and "3 overdue · next at 14:30". */
 @Composable
-fun TodayStage(db: LocalDb, now: Instant, zone: ZoneId, onClick: () -> Unit) {
+fun TodayStage(db: LocalDb, now: Instant, zone: ZoneId, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val c = lynx
     val today = remember(db, now) { SmartLists.sections(db, SmartList.TODAY, now, zone).flatMap { it.items } }
     val overdue = today.count { SmartLists.isOverdue(it, now, zone) }
@@ -195,18 +202,20 @@ fun TodayStage(db: LocalDb, now: Instant, zone: ZoneId, onClick: () -> Unit) {
     }.joinToString(" · ")
     val dateLabel = now.atZone(zone).format(DateTimeFormatter.ofPattern("EEE d MMM", Locale.ENGLISH)).uppercase()
 
-    Stage(Modifier.clickable(role = Role.Button, onClick = onClick).semantics { contentDescription = "Today: ${today.size} open. $caption" }) {
+    // The hero's blocks rise in once per app launch, not on every return to Home.
+    val intro = rememberEntrance(3, play = firstTimeSinceLaunch("today-stage"))
+    Stage(modifier.clickable(role = Role.Button, onClick = onClick).semantics { contentDescription = "Today: ${today.size} open. $caption" }) {
         // Number, unit and date share the hero's baseline, like "80 %" on the Lynx Battery stage
-        Row(modifier = Modifier.fillMaxWidth()) {
-            Text("${today.size}", style = LynxType.hero, color = c.fg, modifier = Modifier.alignByBaseline())
+        Row(modifier = Modifier.fillMaxWidth().rise(intro[0])) {
+            CountText(today.size, LynxType.hero, c.fg, Modifier.alignByBaseline())
             Text(" today", style = LynxType.heroUnit, color = c.fg.copy(alpha = 0.6f), modifier = Modifier.alignByBaseline())
             Spacer(Modifier.weight(1f))
             Text(dateLabel, style = LynxType.mono, color = c.fg.copy(alpha = 0.7f), modifier = Modifier.alignByBaseline())
         }
         Spacer(Modifier.height(Sp.s14))
-        DayRuler(today, now, zone)
+        Box(Modifier.rise(intro[1])) { DayRuler(today, now, zone) }
         Spacer(Modifier.height(Sp.s14))
-        Text(caption, style = LynxType.rowMedium, color = if (overdue > 0) c.signal else c.fg.copy(alpha = 0.75f))
+        Text(caption, style = LynxType.rowMedium, color = if (overdue > 0) c.signal else c.fg.copy(alpha = 0.75f), modifier = Modifier.rise(intro[2]))
     }
 }
 
@@ -253,9 +262,9 @@ fun DayRuler(items: List<ReminderRow>, now: Instant, zone: ZoneId) {
 
 /** 2×2 panel with hairline dividers; each cell = 28 sp count + caption. Selected cell gets the sunk fill. */
 @Composable
-fun StatsGrid(counts: Map<SmartList, Int>, selected: Route?, onClick: (SmartList) -> Unit) {
+fun StatsGrid(counts: Map<SmartList, Int>, selected: Route?, modifier: Modifier = Modifier, onClick: (SmartList) -> Unit) {
     val c = lynx
-    Panel(padding = 0.dp) {
+    Panel(modifier, padding = 0.dp) {
         listOf(SmartList.TODAY to SmartList.SCHEDULED, SmartList.ALL to SmartList.FLAGGED).forEachIndexed { row, (a, b) ->
             if (row > 0) Hairline()
             Row(Modifier.fillMaxWidth().height(androidx.compose.foundation.layout.IntrinsicSize.Min)) {
@@ -278,7 +287,7 @@ private fun StatCell(kind: SmartList, n: Int, selected: Boolean, modifier: Modif
             .semantics { contentDescription = "${kind.title}: $n" },
         verticalArrangement = Arrangement.spacedBy(Sp.s4),
     ) {
-        Text("$n", style = LynxType.stat, color = c.fg)
+        CountText(n, LynxType.stat, c.fg)
         Text(kind.title, style = LynxType.caption, color = c.muted)
     }
 }

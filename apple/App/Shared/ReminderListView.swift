@@ -14,6 +14,8 @@ struct ReminderListView: View {
         let flat = groups.flatMap(\.rows)
         ScrollViewReader { proxy in
             ScrollView {
+                // Keyed on the selection: opening another list crossfades instead of swapping in place.
+                ZStack(alignment: .topLeading) {
                 VStack(alignment: .leading, spacing: Brand.Space.l) {
                     ListHeader(item: item)
                     if item == .smart(.today) { TodayStage(summary: q.todaySummary(), now: model.now) }
@@ -41,8 +43,15 @@ struct ReminderListView: View {
                                 }
                             }
                         }
+                        .transition(.opacity)
                     }
                 }
+                // Ticking off, adding, moving and deleting reminders slide the rows instead of jumping.
+                .animation(Motion.content, value: flat.map(\.id))
+                .id(item)
+                .transition(.opacity)
+                }
+                .animation(Motion.tap, value: item)
                 .padding(Brand.Space.xl)
                 .frame(maxWidth: 760, alignment: .leading)
                 .frame(maxWidth: .infinity, alignment: .leading)

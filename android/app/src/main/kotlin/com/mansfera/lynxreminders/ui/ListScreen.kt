@@ -112,27 +112,31 @@ fun ListScreen(
         }
         LazyColumn(Modifier.weight(1f).fillMaxWidth(), contentPadding = PaddingValues(start = Sp.s14, end = Sp.s14, bottom = Sp.s24)) {
             val empty = sections.all { it.items.isEmpty() }
-            if (empty) item { EmptyNote(emptyText(route)) }
+            if (empty) item(key = "empty") { EmptyNote(emptyText(route), itemMotion(glide = false)) }
             sections.filter { it.items.isNotEmpty() }.forEach { sec ->
                 val header = when {
                     sec.date != null -> Fmt.dayHeader(sec.date!!, now.atZone(zone).toLocalDate())
                     sec.listId != null && route !is Route.ListR -> db.lists[sec.listId]?.name
                     else -> null
                 }
-                if (header != null) item(key = "h-" + (sec.date?.toString() ?: sec.listId)) { SectionLabel(header) }
+                if (header != null) item(key = "h-" + (sec.date?.toString() ?: sec.listId)) { SectionLabel(header, itemMotion(glide = false)) }
                 item(key = "p-" + (sec.date?.toString() ?: sec.listId ?: "all")) {
-                    Panel(padding = 0.dp) {
-                        sec.items.forEachIndexed { i, r ->
-                            if (i > 0) Hairline(Modifier.padding(start = 52.dp))
-                            ReminderItem(r, db, now, zone, handlers, showListName = route is Route.Smart)
+                    Column(itemMotion(glide = false)) {
+                        Panel(padding = 0.dp) {
+                            AnimatedRows(sec.items, key = { it.id }) { r, i ->
+                                Column {
+                                    if (i > 0) Hairline(Modifier.padding(start = 52.dp))
+                                    ReminderItem(r, db, now, zone, handlers, showListName = route is Route.Smart)
+                                }
+                            }
                         }
+                        Spacer(Modifier.heightIn(min = Sp.s10))
                     }
-                    Spacer(Modifier.heightIn(min = Sp.s10))
                 }
             }
             if (route is Route.ListR) {
-                item {
-                    TextAction(if (showCompleted) "Hide completed" else "Show completed", color = c.muted) { showCompleted = !showCompleted }
+                item(key = "completed") {
+                    TextAction(if (showCompleted) "Hide completed" else "Show completed", itemMotion(glide = false), color = c.muted) { showCompleted = !showCompleted }
                 }
             }
         }
@@ -207,12 +211,14 @@ fun SearchScreen(db: LocalDb, now: Instant, handlers: RowHandlers, onBack: () ->
             LynxField(q, { q = it }, "Search titles and notes", Modifier.weight(1f).focusRequester(focus))
         }
         LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(Sp.s14)) {
-            if (q.isNotBlank() && results.isEmpty()) item { EmptyNote("No reminders match “$q”.") }
-            if (results.isNotEmpty()) item {
-                Panel(padding = 0.dp) {
-                    results.forEachIndexed { i, r ->
-                        if (i > 0) Hairline(Modifier.padding(start = 52.dp))
-                        ReminderItem(r, db, now, zone, handlers, showListName = true)
+            if (q.isNotBlank() && results.isEmpty()) item(key = "empty") { EmptyNote("No reminders match “$q”.", itemMotion(glide = false)) }
+            if (results.isNotEmpty()) item(key = "results") {
+                Panel(itemMotion(glide = false), padding = 0.dp) {
+                    AnimatedRows(results, key = { it.id }) { r, i ->
+                        Column {
+                            if (i > 0) Hairline(Modifier.padding(start = 52.dp))
+                            ReminderItem(r, db, now, zone, handlers, showListName = true)
+                        }
                     }
                 }
             }

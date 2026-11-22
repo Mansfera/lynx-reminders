@@ -5,17 +5,20 @@ import SwiftUI
 struct RootView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     // The palette environment is set below this view, so read the scheme directly here.
     private var pal: Palette { Palette(scheme: scheme) }
 
     var body: some View {
-        Group {
-            if model.settings.onboarded || model.signedIn {
-                MainView()
+        let inside = model.settings.onboarded || model.signedIn
+        ZStack {
+            if inside {
+                MainView().transition(Motion.settle(reduce: reduceMotion))
             } else {
-                WelcomeFlow()
+                WelcomeFlow().transition(.opacity)
             }
         }
+        .animation(Motion.enter(0.36), value: inside)
         .background(pal.bg)
         #if os(macOS)
         // The window chrome takes the page color: no gray toolbar band over the content.
@@ -92,13 +95,17 @@ struct DetailColumn: View {
         Group {
             if let id = model.selectedReminder, let r = model.db.reminders[id], !r.isDeleted {
                 ReminderDetailView(reminderId: id).id(id)
+                    .transition(.opacity)
             } else {
                 VStack(spacing: Brand.Space.s) {
                     Text("Select a reminder to see its details.").font(Brand.text(13)).foregroundStyle(pal.muted)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .transition(.opacity)
             }
         }
+        // Switching reminders crossfades quickly, so arrow-key browsing stays snappy.
+        .animation(Motion.tap, value: model.selectedReminder)
         .background(pal.bg)
     }
 }

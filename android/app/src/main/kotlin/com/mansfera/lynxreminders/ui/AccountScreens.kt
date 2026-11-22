@@ -81,6 +81,8 @@ import kotlinx.coroutines.delay
 @Composable
 fun WelcomeScreen(onSignIn: () -> Unit, onContinue: () -> Unit) {
     val c = lynx
+    // Mark, title, text and buttons rise in one after another, the first time only.
+    val intro = rememberEntrance(4, play = firstTimeSinceLaunch("welcome"))
     Column(
         Modifier.fillMaxSize().background(c.bg).statusBarsPadding().navigationBarsPadding().padding(Sp.s14),
         verticalArrangement = Arrangement.spacedBy(Sp.s14),
@@ -90,17 +92,17 @@ fun WelcomeScreen(onSignIn: () -> Unit, onContinue: () -> Unit) {
             Image(
                 painterResource(R.drawable.etherlynx_mark), "Etherlynx mark",
                 colorFilter = ColorFilter.tint(c.fg),
-                modifier = Modifier.fillMaxWidth(0.62f).aspectRatio(1f).align(Alignment.CenterHorizontally),
+                modifier = Modifier.fillMaxWidth(0.62f).aspectRatio(1f).align(Alignment.CenterHorizontally).rise(intro[0]),
             )
             Spacer(Modifier.weight(1f))
-            Text("Lynx Reminders", style = LynxType.screenTitle, color = c.fg)
+            Text("Lynx Reminders", style = LynxType.screenTitle, color = c.fg, modifier = Modifier.rise(intro[1]))
             Spacer(Modifier.height(Sp.s6))
             Text(
                 "Reminders by time, place, Bluetooth device or app. Works on this phone without an account; sign in to sync and share.",
-                style = LynxType.body, color = c.fg.copy(alpha = 0.75f),
+                style = LynxType.body, color = c.fg.copy(alpha = 0.75f), modifier = Modifier.rise(intro[2]),
             )
         }
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth().rise(intro[3]), verticalAlignment = Alignment.CenterVertically) {
             TextAction("Continue without account", color = c.ink2, onClick = onContinue)
             Spacer(Modifier.weight(1f))
             InkPill("Sign in", Icons.AutoMirrored.Rounded.ArrowForward, onClick = onSignIn)
@@ -429,18 +431,24 @@ fun openAppSettings(ctx: android.content.Context) {
     ctx.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + ctx.packageName)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
 }
 
-/** Alert dialog on Lynx tokens: actions stacked right-aligned, the last one is the primary. */
+/**
+ * Alert dialog on Lynx tokens: actions stacked right-aligned, the last one is the primary.
+ * Fades and scales in; dismissing or picking an action plays that backwards before it runs.
+ */
 @Composable
 fun LynxDialog(
     title: String, text: String, onDismiss: () -> Unit, actions: List<Pair<String, () -> Unit>>,
     content: (@Composable () -> Unit)? = null,
 ) {
     val c = lynx
+    val motion = rememberDialogMotion()
     AlertDialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = { motion.close(onDismiss) },
+        modifier = Modifier.dialogCard(motion),
         containerColor = c.panel,
         title = { Text(title, style = LynxType.title, color = c.fg) },
         text = {
+            DialogWindowMotion(motion)
             Column(verticalArrangement = Arrangement.spacedBy(Sp.s10)) {
                 Text(text, style = LynxType.body, color = c.ink2)
                 content?.invoke()
@@ -449,7 +457,7 @@ fun LynxDialog(
         confirmButton = {
             Column(horizontalAlignment = Alignment.End) {
                 actions.forEachIndexed { i, (label, f) ->
-                    TextAction(label, color = if (i == actions.lastIndex) c.fg else c.muted, onClick = f)
+                    TextAction(label, color = if (i == actions.lastIndex) c.fg else c.muted) { motion.close(f) }
                 }
             }
         },

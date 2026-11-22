@@ -1,6 +1,7 @@
 package com.mansfera.lynxreminders.ui
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -145,18 +146,22 @@ fun EditorScreen(
                         } else draft.withDue(null, null)
                     })
                 }
-                if (local != null) {
-                    Hairline()
-                    SettingRow("Time", if (draft.allDay) "All day · alert at the all-day time" else Fmt.time(local.toLocalTime()), onClick = if (!draft.allDay) ({ timePicker = true }) else null) {
-                        LynxSwitch(!draft.allDay, { on -> draft = draft.withDue(local.toLocalDate(), if (on) LocalTime.of(9, 0) else null) })
-                    }
-                    Hairline()
-                    MenuRow("Early alert", Fmt.earlyLabel(draft.earlyAlertMinutes), listOf(null, 5, 15, 30, 60, 120, 1440).map { Fmt.earlyLabel(it) to it }) {
-                        draft = draft.copy(earlyAlertMinutes = it)
-                    }
-                    Hairline()
-                    SettingRow("Repeat", draft.repeat?.let { Fmt.repeatLabel(it) + (if (it.autoAdvance) " · advances on its own" else "") } ?: "Never", onClick = { sheet = "repeat" }) {
-                        Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, null, tint = c.muted)
+                // Time, early alert and repeat open under the date when it's switched on.
+                AnimatedVisibility(local != null, enter = expandIn(), exit = collapseOut()) {
+                    val at = lastNonNull(local) ?: return@AnimatedVisibility
+                    Column {
+                        Hairline()
+                        SettingRow("Time", if (draft.allDay) "All day · alert at the all-day time" else Fmt.time(at.toLocalTime()), onClick = if (!draft.allDay) ({ timePicker = true }) else null) {
+                            LynxSwitch(!draft.allDay, { on -> draft = draft.withDue(at.toLocalDate(), if (on) LocalTime.of(9, 0) else null) })
+                        }
+                        Hairline()
+                        MenuRow("Early alert", Fmt.earlyLabel(draft.earlyAlertMinutes), listOf(null, 5, 15, 30, 60, 120, 1440).map { Fmt.earlyLabel(it) to it }) {
+                            draft = draft.copy(earlyAlertMinutes = it)
+                        }
+                        Hairline()
+                        SettingRow("Repeat", draft.repeat?.let { Fmt.repeatLabel(it) + (if (it.autoAdvance) " · advances on its own" else "") } ?: "Never", onClick = { sheet = "repeat" }) {
+                            Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, null, tint = c.muted)
+                        }
                     }
                 }
             }
@@ -166,13 +171,16 @@ fun EditorScreen(
                 SettingRow("Alert again until done", draft.nag?.let { "Every ${it.everyMinutes} min · " + (it.max?.let { m -> "$m times" } ?: "up to 24 h") } ?: "After a time or place alert") {
                     LynxSwitch(draft.nag != null, { draft = draft.copy(nag = if (it) Nag(10, 6) else null) })
                 }
-                draft.nag?.let { nag ->
-                    Hairline()
-                    Column(Modifier.padding(horizontal = Sp.s14, vertical = Sp.s10), verticalArrangement = Arrangement.spacedBy(Sp.s6)) {
-                        Text("Every", style = LynxType.caption, color = c.muted)
-                        CapsuleTabs(listOf(5, 10, 15, 30, 60).map { it to "$it min" }, nag.everyMinutes, small = true) { draft = draft.copy(nag = nag.copy(everyMinutes = it)) }
-                        Text("How many times", style = LynxType.caption, color = c.muted)
-                        CapsuleTabs(listOf<Int?>(3, 6, 12, null).map { it to (it?.toString() ?: "Until done") }, nag.max, small = true) { draft = draft.copy(nag = nag.copy(max = it)) }
+                AnimatedVisibility(draft.nag != null, enter = expandIn(), exit = collapseOut()) {
+                    val nag = lastNonNull(draft.nag) ?: return@AnimatedVisibility
+                    Column {
+                        Hairline()
+                        Column(Modifier.padding(horizontal = Sp.s14, vertical = Sp.s10), verticalArrangement = Arrangement.spacedBy(Sp.s6)) {
+                            Text("Every", style = LynxType.caption, color = c.muted)
+                            CapsuleTabs(listOf(5, 10, 15, 30, 60).map { it to "$it min" }, nag.everyMinutes, small = true) { draft = draft.copy(nag = nag.copy(everyMinutes = it)) }
+                            Text("How many times", style = LynxType.caption, color = c.muted)
+                            CapsuleTabs(listOf<Int?>(3, 6, 12, null).map { it to (it?.toString() ?: "Until done") }, nag.max, small = true) { draft = draft.copy(nag = nag.copy(max = it)) }
+                        }
                     }
                 }
             }
@@ -236,32 +244,37 @@ fun EditorScreen(
     if (datePicker) {
         val local = draft.dueLocal() ?: LocalDateTime.now()
         val st = rememberDatePickerState(initialSelectedDateMillis = local.toLocalDate().atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli())
+        val motion = rememberDialogMotion()
         DatePickerDialog(
-            onDismissRequest = { datePicker = false },
+            onDismissRequest = { motion.close { datePicker = false } },
             confirmButton = { TextAction("Set") {
                 st.selectedDateMillis?.let { ms ->
                     val d = Instant.ofEpochMilli(ms).atZone(ZoneOffset.UTC).toLocalDate()
                     draft = draft.withDue(d, if (draft.allDay) null else local.toLocalTime())
                 }
-                datePicker = false
+                motion.close { datePicker = false }
             } },
-            dismissButton = { TextAction("Cancel", color = c.muted) { datePicker = false } },
+            modifier = Modifier.dialogCard(motion),
+            dismissButton = { TextAction("Cancel", color = c.muted) { motion.close { datePicker = false } } },
             colors = DatePickerDefaults.colors(containerColor = c.panel),
         ) {
+            DialogWindowMotion(motion)
             DatePicker(st, colors = lynxDatePickerColors())
         }
     }
     if (timePicker) {
         val local = draft.dueLocal() ?: LocalDateTime.now()
         val st = rememberTimePickerState(local.hour, local.minute, Fmt.is24)
-        Dialog(onDismissRequest = { timePicker = false }) {
-            Panel(padding = Sp.s18) {
+        val motion = rememberDialogMotion()
+        Dialog(onDismissRequest = { motion.close { timePicker = false } }) {
+            DialogWindowMotion(motion)
+            Panel(Modifier.dialogCard(motion), padding = Sp.s18) {
                 Text("Time", style = LynxType.title, color = c.fg, modifier = Modifier.padding(bottom = Sp.s14))
                 TimePicker(st, colors = lynxTimePickerColors())
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                    TextAction("Cancel", color = c.muted) { timePicker = false }
+                    TextAction("Cancel", color = c.muted) { motion.close { timePicker = false } }
                     TextAction("Set") {
-                        draft = draft.withDue(local.toLocalDate(), LocalTime.of(st.hour, st.minute)); timePicker = false
+                        draft = draft.withDue(local.toLocalDate(), LocalTime.of(st.hour, st.minute)); motion.close { timePicker = false }
                     }
                 }
             }
@@ -328,22 +341,28 @@ private fun SubtasksPanel(
     var text by remember { mutableStateOf("") }
     SectionLabel(if (subs.isEmpty()) "Subtasks" else "Goal")
     Panel(padding = 0.dp) {
-        if (progress != null) {
-            Row(Modifier.padding(Sp.s14), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Sp.s14)) {
-                GoalRingLarge(progress, color)
-                Column {
-                    Text(if (progress.full) "All subtasks done" else "${progress.total - progress.done} to go", style = LynxType.rowMedium, color = c.fg)
-                    Text(if (progress.full) "Complete the goal when you're ready" else "Completing the goal can complete them all", style = LynxType.caption, color = c.muted)
+        // The goal header opens with the first subtask; subtasks expand in and collapse out.
+        AnimatedVisibility(progress != null, enter = expandIn(), exit = collapseOut()) {
+            val p = lastNonNull(progress) ?: return@AnimatedVisibility
+            Column {
+                Row(Modifier.padding(Sp.s14), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Sp.s14)) {
+                    GoalRingLarge(p, color)
+                    Column {
+                        Text(if (p.full) "All subtasks done" else "${p.total - p.done} to go", style = LynxType.rowMedium, color = c.fg)
+                        Text(if (p.full) "Complete the goal when you're ready" else "Completing the goal can complete them all", style = LynxType.caption, color = c.muted)
+                    }
                 }
+                Hairline()
             }
-            Hairline()
         }
-        subs.forEach { s ->
-            Row(Modifier.fillMaxWidth().clickable { handlers.onOpen(s) }.heightIn(min = 48.dp).padding(end = Sp.s14), verticalAlignment = Alignment.CenterVertically) {
-                CheckCircle(s.isCompleted, color, { handlers.onToggle(s) }, label = s.title)
-                Text(s.title, style = LynxType.row, color = if (s.isCompleted) c.muted else c.fg, modifier = Modifier.weight(1f), maxLines = 2, overflow = TextOverflow.Ellipsis)
+        AnimatedRows(subs, key = { it.id }) { s, _ ->
+            Column {
+                Row(Modifier.fillMaxWidth().clickable { handlers.onOpen(s) }.heightIn(min = 48.dp).padding(end = Sp.s14), verticalAlignment = Alignment.CenterVertically) {
+                    CheckCircle(s.isCompleted, color, { handlers.onToggle(s) }, label = s.title)
+                    Text(s.title, style = LynxType.row, color = if (s.isCompleted) c.muted else c.fg, modifier = Modifier.weight(1f), maxLines = 2, overflow = TextOverflow.Ellipsis)
+                }
+                Hairline(Modifier.padding(start = 48.dp))
             }
-            Hairline(Modifier.padding(start = 48.dp))
         }
         Row(Modifier.fillMaxWidth().padding(start = Sp.s14, end = Sp.s4), verticalAlignment = Alignment.CenterVertically) {
             fun add() {

@@ -74,9 +74,10 @@ struct RepeatEditor: View {
             }
             if let rule, expanded {
                 Hairline()
-                custom(rule)
+                custom(rule).transition(.opacity)
             }
         }
+        .animation(Motion.content, value: expanded)
     }
 
     @ViewBuilder

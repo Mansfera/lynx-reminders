@@ -7,9 +7,10 @@ import SwiftUI
 struct WelcomeFlow: View {
     @Environment(AppModel.self) private var model
     @State private var showAuth = ProcessInfo.processInfo.environment["LYNX_SCREEN"] == "signin"
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        Group {
+        ZStack {
             if showAuth {
                 // Wide windows keep the stage beside the form, so the screen still has its hero.
                 ViewThatFits(in: .horizontal) {
@@ -21,10 +22,13 @@ struct WelcomeFlow: View {
                     .frame(minWidth: 900)
                     AuthView(onBack: { showAuth = false }, onDone: {})
                 }
+                .transition(Motion.slide(.trailing, reduce: reduceMotion))
             } else {
                 WelcomeView(onSignIn: { showAuth = true }, onSkip: { model.settings.onboarded = true; model.notifications.requestAuthorization() })
+                    .transition(Motion.slide(.leading, distance: 12, reduce: reduceMotion))
             }
         }
+        .animation(Motion.content, value: showAuth)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
@@ -40,25 +44,30 @@ struct WelcomeView: View {
             Stage(padding: Brand.Space.xxl) {
                 VStack(alignment: .leading, spacing: Brand.Space.xl) {
                     EtherlynxMark().frame(width: 64, height: 64).foregroundStyle(pal.fg)
+                        .entrance(1)
                     VStack(alignment: .leading, spacing: Brand.Space.s) {
                         Text("Lynx Reminders").font(Brand.display(40)).tracking(-1.2)
                         Text("Reminders that find you: at a time, every 45 minutes between nine and six, when you leave home, when your headphones connect.")
                             .font(Brand.text(15)).foregroundStyle(pal.fg.opacity(0.7))
                             .fixedSize(horizontal: false, vertical: true)
                     }
+                    .entrance(2)
                     Spacer(minLength: 0)
                     HStack(spacing: Brand.Space.xl) {
                         InkPill(title: "Sign in", action: onSignIn).disabled(model.backend == nil)
                         LinkButton(title: "Continue without account", action: onSkip)
                     }
+                    .entrance(3)
                     if model.backend == nil {
                         Text("No server is configured in this build, so everything stays on this device.")
                             .font(Brand.caption).foregroundStyle(pal.fg.opacity(0.6))
+                            .entrance(4)
                     }
                 }
                 .frame(maxWidth: 460, alignment: .leading)
             }
             .frame(maxWidth: 560, maxHeight: 520)
+            .entrance(0)
         }
         .padding(Brand.Space.xxl)
     }
@@ -73,13 +82,16 @@ struct AuthStage: View {
                 EtherlynxMark().frame(width: 56, height: 56).foregroundStyle(pal.fg)
                 Spacer(minLength: Brand.Space.xxl)
                 Text("One account,\nevery device.").font(Brand.display(34)).tracking(-1)
+                    .entrance(1)
                 VStack(alignment: .leading, spacing: Brand.Space.s) {
-                    ForEach(["Sync between Mac, iPhone, iPad and Android", "Share a list or a single reminder", "Assign reminders to people in a list"], id: \.self) { line in
+                    let lines = ["Sync between Mac, iPhone, iPad and Android", "Share a list or a single reminder", "Assign reminders to people in a list"]
+                    ForEach(Array(lines.enumerated()), id: \.offset) { i, line in
                         HStack(alignment: .firstTextBaseline, spacing: Brand.Space.s) {
                             Image(systemName: "checkmark").font(.system(size: 11, weight: .bold))
                             Text(line).font(Brand.text(13.5))
                         }
                         .foregroundStyle(pal.fg.opacity(0.75))
+                        .entrance(2 + i)
                     }
                 }
             }
@@ -163,6 +175,10 @@ struct AuthView: View {
         }
         .frame(maxWidth: 420)
         .padding(Brand.Space.xxl)
+        // Fields and the message slide in and out as the mode changes instead of jumping.
+        .animation(Motion.content, value: mode)
+        .animation(Motion.content, value: codeSent)
+        .animation(Motion.content, value: message)
     }
 
     private var buttonTitle: String {

@@ -326,6 +326,7 @@ struct ReminderDetailView: View {
                     .padding(.horizontal, Brand.Space.l).padding(.vertical, Brand.Space.m)
                     .focusOnTap($subtaskFocused)
                 }
+                .animation(Motion.content, value: subs.map(\.id))
             }
         }
     }

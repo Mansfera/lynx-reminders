@@ -21,7 +21,7 @@ struct SidebarView: View {
                     StatsGrid(queries: q)
                     VStack(spacing: 2) {
                         ForEach(SmartList.rows, id: \.self) { s in
-                            SidebarRow(item: .smart(s), symbol: symbol(s), title: s.title, count: s == .completed ? nil : q.count(s))
+                            SidebarRow(item: .smart(s), symbol: symbol(s), title: s.title, count: s == .completed ? nil : q.count(s), large: phone)
                         }
                     }
                     listSection("My lists", lists: q.myLists, q: q, shared: false)
@@ -72,14 +72,15 @@ struct SidebarView: View {
     private func listSection(_ title: String, lists: [LynxList], q: SmartQueries, shared: Bool) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             HStack {
-                Caption(title)
+                // iPhone reads at arm's length: the section names and rows are a size up from the Mac's.
+                if phone { Text(title).font(Brand.text(14, .medium)).foregroundStyle(pal.muted) } else { Caption(title) }
                 Spacer()
                 if !shared {
                     Button {
                         model.listEditor = ListEditorState(id: nil, name: "", color: .blue, icon: .list)
                     } label: {
-                        Image(systemName: "plus").font(.system(size: 11, weight: .semibold)).foregroundStyle(pal.muted)
-                            .frame(width: 22, height: 22).contentShape(Rectangle())
+                        Image(systemName: "plus").font(.system(size: phone ? 14 : 11, weight: .semibold)).foregroundStyle(pal.muted)
+                            .frame(width: phone ? 30 : 22, height: phone ? 30 : 22).contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                     .help("New list")
@@ -93,7 +94,7 @@ struct SidebarView: View {
                     .padding(.horizontal, Brand.Space.s)
             }
             ForEach(lists) { l in
-                ListRow(list: l, count: q.openCount(inList: l.id), members: shared ? model.db.members(of: l.id).compactMap(\.profile) : [])
+                ListRow(list: l, count: q.openCount(inList: l.id), members: shared ? model.db.members(of: l.id).compactMap(\.profile) : [], large: phone)
                     // Drag a list onto another to reorder.
                     .draggable(l.id.uuidString)
                     .dropDestination(for: String.self) { items, _ in
@@ -105,6 +106,7 @@ struct SidebarView: View {
                     }
             }
         }
+        .animation(Motion.content, value: lists.map(\.id))
     }
 }
 
@@ -142,6 +144,7 @@ struct StatsGrid: View {
                 HStack(alignment: .firstTextBaseline, spacing: Brand.Space.xs) {
                     Text("\(n)").font(Brand.stat).tracking(-0.8).monospacedDigit()
                         .contentTransition(.numericText())
+                        .animation(Motion.content, value: n)
                     if overdue {
                         Text("\(overdueCount) late").font(Brand.mono(10.5)).foregroundStyle(pal.signal).lineLimit(1)
                     }
@@ -151,6 +154,7 @@ struct StatsGrid: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(Brand.Space.l)
             .background(selected ? pal.sunk : .clear)
+            .animation(Motion.tap, value: selected)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -163,6 +167,8 @@ struct SidebarRow: View {
     let symbol: String
     let title: String
     let count: Int?
+    /// iPhone: bigger text and taller rows.
+    var large = false
     @Environment(AppModel.self) private var model
     @Environment(\.palette) private var pal
 
@@ -170,15 +176,16 @@ struct SidebarRow: View {
         let selected = model.selection == item
         Button { model.show(item) } label: {
             HStack(spacing: Brand.Space.s) {
-                Image(systemName: symbol).font(.system(size: 13)).foregroundStyle(pal.ink2).frame(width: 22)
-                Text(title).font(Brand.text(13.5, selected ? .medium : .regular))
+                Image(systemName: symbol).font(.system(size: large ? 16 : 13)).foregroundStyle(pal.ink2).frame(width: large ? 26 : 22)
+                Text(title).font(Brand.text(large ? 16 : 13.5, selected ? .medium : .regular))
                 Spacer(minLength: Brand.Space.xs)
                 if let count, count > 0 {
-                    Text("\(count)").font(Brand.mono(11)).foregroundStyle(pal.muted).monospacedDigit()
+                    Text("\(count)").font(Brand.mono(large ? 13 : 11)).foregroundStyle(pal.muted).monospacedDigit()
                 }
             }
-            .padding(.horizontal, Brand.Space.s).padding(.vertical, 7)
+            .padding(.horizontal, Brand.Space.s).padding(.vertical, large ? Brand.Space.s : 7)
             .background(selected ? pal.sunk : .clear, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .animation(Motion.tap, value: selected)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -189,6 +196,8 @@ struct ListRow: View {
     let list: LynxList
     let count: Int
     let members: [Profile]
+    /// iPhone: bigger text and taller rows.
+    var large = false
     @Environment(AppModel.self) private var model
     @Environment(\.palette) private var pal
 
@@ -196,20 +205,21 @@ struct ListRow: View {
         let selected = model.selection == .list(list.id)
         Button { model.show(.list(list.id)) } label: {
             HStack(spacing: Brand.Space.s) {
-                ListBadge(list: list, size: 22)
-                Text(list.name).font(Brand.text(13.5, selected ? .medium : .regular)).lineLimit(1)
+                ListBadge(list: list, size: large ? 26 : 22)
+                Text(list.name).font(Brand.text(large ? 16 : 13.5, selected ? .medium : .regular)).lineLimit(1)
                 Spacer(minLength: Brand.Space.xs)
                 if !members.isEmpty {
                     HStack(spacing: -6) {
-                        ForEach(members.prefix(3)) { Avatar(profile: $0, size: 18) }
+                        ForEach(members.prefix(3)) { Avatar(profile: $0, size: large ? 22 : 18) }
                     }
                 }
                 if count > 0 {
-                    Text("\(count)").font(Brand.mono(11)).foregroundStyle(pal.muted).monospacedDigit()
+                    Text("\(count)").font(Brand.mono(large ? 13 : 11)).foregroundStyle(pal.muted).monospacedDigit()
                 }
             }
-            .padding(.horizontal, Brand.Space.s).padding(.vertical, 5)
+            .padding(.horizontal, Brand.Space.s).padding(.vertical, large ? Brand.Space.xs : 5)
             .background(selected ? pal.sunk : .clear, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .animation(Motion.tap, value: selected)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

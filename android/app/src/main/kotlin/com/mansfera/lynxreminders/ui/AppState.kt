@@ -1,7 +1,10 @@
 package com.mansfera.lynxreminders.ui
 
 import android.app.Application
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.mansfera.lynxreminders.LynxApp
@@ -28,6 +31,9 @@ sealed interface Route {
     data object Search : Route
 }
 
+/** How the back stack last changed: picks the screen transition (Motion.kt). */
+enum class Nav { Push, Pop, Reset }
+
 class AppVM(app: Application) : AndroidViewModel(app) {
     val g = (app as LynxApp).graph
     val db = g.store.state
@@ -53,10 +59,13 @@ class AppVM(app: Application) : AndroidViewModel(app) {
 
     fun tick() { _now.value = Instant.now() }
 
+    var lastNav by mutableStateOf(Nav.Reset)
+        private set
+
     val top: Route get() = stack.last()
-    fun push(r: Route) { stack.add(r) }
-    fun pop(): Boolean = if (stack.size > 1) { stack.removeAt(stack.lastIndex); true } else false
-    fun reset(r: Route) { stack.clear(); stack.add(r) }
+    fun push(r: Route) { lastNav = Nav.Push; stack.add(r) }
+    fun pop(): Boolean = if (stack.size > 1) { lastNav = Nav.Pop; stack.removeAt(stack.lastIndex); true } else false
+    fun reset(r: Route) { lastNav = Nav.Reset; stack.clear(); stack.add(r) }
 
     /** Runs an account/network action, reporting a short error message. */
     fun run(onError: (String) -> Unit = {}, onDone: () -> Unit = {}, block: suspend () -> Unit) {

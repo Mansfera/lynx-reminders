@@ -24,6 +24,8 @@ struct TodayStage: View {
                 captionText.font(Brand.text(13, .medium))
             }
         }
+        .animation(Motion.content, value: summary.open)
+        .entrance()
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(summary.open) open today. \(caption)")
     }

@@ -1,5 +1,8 @@
 package com.mansfera.lynxreminders.ui
 
+import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.TweenSpec
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
@@ -117,6 +120,25 @@ object Sp {
     val s14 = androidx.compose.ui.unit.Dp(14f)
     val s18 = androidx.compose.ui.unit.Dp(18f)
     val s24 = androidx.compose.ui.unit.Dp(24f)
+}
+
+/**
+ * Motion tokens, the same values as the Apple apps: quick and calm, no bounce or overshoot.
+ * Everything runs on Compose's clock, so the system "Remove animations" setting turns it off.
+ */
+object Motion {
+    const val MICRO = 160
+    const val SCREEN = 260
+    const val SHEET = 300
+    /** Delay between blocks of a staggered entrance. */
+    const val STAGGER = 40
+    /** Emphasized decelerate: for things arriving. */
+    val Enter = CubicBezierEasing(0.2f, 0f, 0f, 1f)
+    /** Accelerate: for things leaving. */
+    val Exit = CubicBezierEasing(0.3f, 0f, 1f, 1f)
+
+    fun <T> enter(duration: Int = SCREEN, delay: Int = 0): TweenSpec<T> = tween(duration, delay, Enter)
+    fun <T> exit(duration: Int = MICRO): TweenSpec<T> = tween(duration, easing = Exit)
 }
 
 private fun scheme(c: LynxColors): ColorScheme {

@@ -326,7 +326,7 @@ fun CheckCircle(checked: Boolean, color: Color, onClick: () -> Unit, modifier: M
         val t = rememberInfiniteTransition(label = "pulse")
         t.animateFloat(1f, 1.12f, infiniteRepeatable(tween(700), RepeatMode.Reverse), label = "pulse").value
     } else 1f
-    val fill by animateFloatAsState(if (checked) 1f else 0f, tween(160), label = "fill")
+    val fill by animateFloatAsState(if (checked) 1f else 0f, tween(Motion.MICRO), label = "fill")
     Box(
         modifier
             .size(48.dp)
@@ -348,7 +348,7 @@ fun CheckCircle(checked: Boolean, color: Color, onClick: () -> Unit, modifier: M
 @Composable
 fun GoalRing(progress: Float, color: Color, modifier: Modifier = Modifier, size: Dp = 22.dp, stroke: Dp = 2.5.dp) {
     val c = lynx
-    val p by animateFloatAsState(progress.coerceIn(0f, 1f), tween(300), label = "ring")
+    val p by animateFloatAsState(progress.coerceIn(0f, 1f), Motion.enter(), label = "ring")
     Canvas(modifier.size(size)) {
         val s = stroke.toPx()
         val d = this.size.minDimension - s
