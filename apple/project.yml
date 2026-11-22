@@ -16,8 +16,8 @@ settings:
     # Swift 6.2 "approachable concurrency": app code is main-actor by default.
     SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
     SWIFT_APPROACHABLE_CONCURRENCY: YES
-    MARKETING_VERSION: "0.1.1"
-    CURRENT_PROJECT_VERSION: "3"
+    MARKETING_VERSION: "0.1.2"
+    CURRENT_PROJECT_VERSION: "4"
     PRODUCT_BUNDLE_IDENTIFIER: com.mansfera.lynxreminders
     PRODUCT_NAME: Lynx Reminders
     DEVELOPMENT_TEAM: ""
