@@ -15,6 +15,7 @@ const ANON = process.env.SUPABASE_ANON_KEY ??
 const SERVICE = process.env.SUPABASE_SERVICE_ROLE_KEY ??
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU';
 const admin = createClient(URL, SERVICE, { auth: { persistSession: false, autoRefreshToken: false } }).auth.admin;
+const admin_db = () => createClient(URL, SERVICE, { auth: { persistSession: false, autoRefreshToken: false } });
 const run = Date.now().toString(36);
 const mail = (n) => `${n}.${run}@lynx.test`;
 const PASSWORD = 'correct-horse-battery';
@@ -326,6 +327,27 @@ test('delete_account removes the user and what they own', async () => {
   assert.deepEqual(await ok(A.c.from('lists').select().eq('id', l.id)), []);
   const relog = await anonClient().auth.signInWithPassword({ email: Z.email, password: PASSWORD });
   assert.ok(relog.error);
+});
+
+test('synced secrets: only the owner reads or writes them, and they go with the account', async () => {
+  const blob = { v: 1, kdf: 'pbkdf2-sha256', iter: 600000, salt: 'c2FsdA==', nonce: 'bm9uY2U=', box: 'Ym94' };
+  const Y = await user('yan');
+  await ok(Y.c.from('user_secrets').upsert({ claude_key: blob }));
+  assert.deepEqual((await ok(Y.c.from('user_secrets').select('claude_key')))[0].claude_key, blob);
+  await ok(Y.c.from('user_secrets').upsert({ claude_key: { ...blob, box: 'bmV3' } }));
+  assert.equal((await ok(Y.c.from('user_secrets').select('claude_key')))[0].claude_key.box, 'bmV3', 'upsert replaces');
+  // Nobody else sees, overwrites or deletes it.
+  await denied(A.c.from('user_secrets').select().eq('user_id', Y.id));
+  const forged = await A.c.from('user_secrets').insert({ user_id: Y.id, claude_key: blob });
+  assert.ok(forged.error, 'cannot write a row for someone else');
+  await ok(A.c.from('user_secrets').delete().eq('user_id', Y.id));
+  assert.equal((await ok(Y.c.from('user_secrets').select())).length, 1);
+  const { error: anonErr, data: anonData } = await anonClient().from('user_secrets').select();
+  assert.ok(anonErr || anonData.length === 0, 'anonymous gets nothing');
+  // Deleting the account deletes the secret.
+  await ok(Y.c.rpc('delete_account'));
+  const { count } = await admin_db().from('user_secrets').select('*', { count: 'exact', head: true }).eq('user_id', Y.id);
+  assert.equal(count, 0);
 });
 
 test('realtime delivers a change on a shared list to the other member', async () => {

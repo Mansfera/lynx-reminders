@@ -324,6 +324,29 @@ public final class LynxBackend: Sendable {
         }
     }
 
+    // MARK: Synced secrets (SPEC §7b): sealed on the device, the server only stores the blob
+
+    /// The user's Anthropic key as synced by one of their devices, or nil when none is.
+    public func syncedClaudeKey(user: UUID) async throws -> SealedSecret? {
+        struct Row: Decodable { let claude_key: SealedSecret }
+        return try await mapErrors {
+            let rows: [Row] = try await client.from("user_secrets").select("claude_key").eq("user_id", value: user.uuidString)
+                .execute().value
+            return rows.first?.claude_key
+        }
+    }
+
+    public func saveSyncedClaudeKey(_ sealed: SealedSecret, user: UUID) async throws {
+        struct Row: Encodable { let user_id: String; let claude_key: SealedSecret; let updated_at: Date }
+        try await mapErrors {
+            try await client.from("user_secrets").upsert(Row(user_id: user.uuidString, claude_key: sealed, updated_at: Date())).execute()
+        }
+    }
+
+    public func deleteSyncedClaudeKey(user: UUID) async throws {
+        try await mapErrors { try await client.from("user_secrets").delete().eq("user_id", value: user.uuidString).execute() }
+    }
+
     public var remote: SupabaseRemote { SupabaseRemote(client: client) }
 
     // MARK: Realtime

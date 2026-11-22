@@ -1,5 +1,6 @@
 package com.mansfera.lynxreminders.ui
 
+import androidx.compose.material3.CircularProgressIndicator
 import com.mansfera.lynxreminders.remote.OnDeviceAI
 import com.mansfera.lynxreminders.core.QuickAddAI
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -37,7 +38,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.Error
 import androidx.compose.material.icons.rounded.Key
+import androidx.compose.material.icons.rounded.Lock
+import androidx.compose.material.icons.rounded.LockOpen
 import androidx.compose.material.icons.rounded.Mail
 import androidx.compose.material.icons.rounded.Sync
 import androidx.compose.material3.AlertDialog
@@ -69,6 +73,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import com.mansfera.lynxreminders.R
 import com.mansfera.lynxreminders.core.ListColors
 import com.mansfera.lynxreminders.core.ListIcons
+import com.mansfera.lynxreminders.core.SecretSeal
 import com.mansfera.lynxreminders.core.LocalDb
 import com.mansfera.lynxreminders.data.Settings as LynxSettings
 import com.mansfera.lynxreminders.remote.PasskeyInfo
@@ -757,35 +762,126 @@ private fun ClaudeSettings(vm: AppVM, settings: LynxSettings) {
 
     }
 
+    // Key sync (SPEC §7b)
+    val account by vm.account.collectAsStateWithLifecycle()
+    val userId = account.userId?.takeIf { !account.needsSignIn }
+    val synced by vm.g.claude.synced.collectAsStateWithLifecycle()
+    LaunchedEffect(userId) { vm.g.claude.refreshSync(userId) }
+    var settingUpSync by remember { mutableStateOf(false) }
+    var pin by remember { mutableStateOf("") }
+    var pin2 by remember { mutableStateOf("") }
+    var unlockPin by remember { mutableStateOf("") }
+    var syncBusy by remember { mutableStateOf(false) }
+    val startSync = start@{
+        if (syncBusy || userId == null) return@start
+        if (pin.length < SecretSeal.MINIMUM_PIN_LENGTH) return@start
+        if (pin != pin2) { error = "The two PINs don't match."; return@start }
+        syncBusy = true; error = null
+        vm.run(onError = { error = it; syncBusy = false }, onDone = { settingUpSync = false; pin = ""; pin2 = ""; syncBusy = false }) {
+            vm.g.claude.sync(pin, userId)
+        }
+    }
+    val stopSync = {
+        if (userId != null) {
+            syncBusy = true
+            vm.run(onError = { error = it; syncBusy = false }, onDone = { syncBusy = false }) { vm.g.claude.unsync(userId) }
+        }
+    }
+    val unlock = start@{
+        if (syncBusy || userId == null || unlockPin.isEmpty()) return@start
+        syncBusy = true; error = null
+        vm.run(onError = { error = it; syncBusy = false }, onDone = { unlockPin = ""; syncBusy = false }) {
+            val models = vm.g.claude.unlockSynced(unlockPin, userId)
+            vm.repo.updateSettings { it.copy(aiReadsQuickAdd = true, quickAddReader = "claude", claudeModel = pickModel(it.claudeModel, models)) }
+        }
+    }
+
     SectionLabel("Claude")
     Panel(padding = 0.dp) {
         if (connected) {
-            SettingRow("Anthropic key", "Connected") {
-                TextAction("Remove", color = c.signal) { vm.g.claude.disconnect() }
+            SettingRow("Anthropic key", "Connected, billed to your Anthropic account") {
+                TextAction("Remove") { vm.g.claude.disconnect() }
             }
             Hairline()
             MenuRow("Model", models.firstOrNull { it.id == settings.claudeModel }?.name ?: settings.claudeModel, models.map { it.name to it.id }) { id ->
                 vm.repo.updateSettings { it.copy(claudeModel = id) }
             }
+            if (userId != null) {
+                Hairline()
+                val syncDetail = when {
+                    settingUpSync -> "Choose a PIN to encrypt it"
+                    synced == true -> "On, encrypted with your PIN"
+                    else -> "Off, the key stays on this phone"
+                }
+                SettingRow("Sync key to my devices", syncDetail) {
+                    if (syncBusy && !settingUpSync) CircularProgressIndicator(Modifier.padding(end = Sp.s6).size(16.dp), color = c.muted, strokeWidth = 2.dp)
+                    LynxSwitch(synced == true || settingUpSync, { on ->
+                        error = null
+                        when {
+                            on -> settingUpSync = true
+                            settingUpSync -> { settingUpSync = false; pin = ""; pin2 = "" }
+                            else -> stopSync()
+                        }
+                    })
+                }
+                if (settingUpSync) {
+                    Hairline()
+                    Column(Modifier.padding(horizontal = Sp.s14, vertical = Sp.s14), verticalArrangement = Arrangement.spacedBy(Sp.s10)) {
+                        LynxField(pin, { pin = it }, "PIN or passphrase", password = true, keyboardType = KeyboardType.Password, imeAction = ImeAction.Next)
+                        LynxField(pin2, { pin2 = it }, "Repeat it", password = true, keyboardType = KeyboardType.Password, onDone = { startSync() })
+                        Text(
+                            "At least ${SecretSeal.MINIMUM_PIN_LENGTH} characters. Lynx's server keeps only the encrypted key; " +
+                                "a longer PIN or a passphrase keeps it safe even if that copy leaked. Each device asks for it once.",
+                            style = LynxType.caption, color = c.muted,
+                        )
+                        error?.let { ErrorLine(it) }
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Sp.s14, Alignment.End), verticalAlignment = Alignment.CenterVertically) {
+                            TextAction("Cancel") { settingUpSync = false; pin = ""; pin2 = ""; error = null }
+                            InkPill(
+                                if (syncBusy) "Encrypting…" else "Encrypt and sync", Icons.Rounded.Lock,
+                                enabled = pin.length >= SecretSeal.MINIMUM_PIN_LENGTH && pin2.isNotEmpty() && !syncBusy,
+                            ) { startSync() }
+                        }
+                    }
+                }
+            }
         } else {
+            if (userId != null && synced == true) {
+                Column(Modifier.padding(horizontal = Sp.s14, vertical = Sp.s10), verticalArrangement = Arrangement.spacedBy(Sp.s6)) {
+                    Text("Your key is synced", style = LynxType.rowMedium, color = c.fg)
+                    Text("Enter the PIN you chose on your other device.", style = LynxType.caption, color = c.muted)
+                    LynxField(unlockPin, { unlockPin = it }, "PIN or passphrase", password = true, keyboardType = KeyboardType.Password, onDone = { unlock() })
+                    InkPill(if (syncBusy) "Unlocking…" else "Unlock", Icons.Rounded.LockOpen, enabled = unlockPin.isNotEmpty() && !syncBusy) { unlock() }
+                }
+                Hairline()
+            }
             Column(Modifier.padding(horizontal = Sp.s14, vertical = Sp.s10), verticalArrangement = Arrangement.spacedBy(Sp.s6)) {
-                Text("Anthropic key", style = LynxType.rowMedium, color = c.fg)
+                Text(if (userId != null && synced == true) "Or use another key" else "Anthropic API key", style = LynxType.rowMedium, color = c.fg)
                 LynxField(key, { key = it.trim() }, "sk-ant-…", password = true, keyboardType = KeyboardType.Password, onDone = connect)
                 InkPill(if (connecting) "Checking…" else "Connect", Icons.AutoMirrored.Rounded.ArrowForward, enabled = key.isNotBlank() && !connecting, onClick = connect)
+                TextAction("Get a key at console.anthropic.com") {
+                    ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://console.anthropic.com/settings/keys")))
+                }
             }
         }
+        if (!settingUpSync) error?.let { ErrorLine(it, Modifier.padding(start = Sp.s14, end = Sp.s14, bottom = Sp.s12)) }
     }
-    error?.let { Text(it, style = LynxType.caption, color = c.signal, modifier = Modifier.padding(horizontal = Sp.s6)) }
     Text(
-        "With Claude, the line, your list names and the current time go to Anthropic with your own API key, billed to it. " +
-            "Haiku is the quickest and cheapest; larger models read tricky lines better but take longer. " +
-            "The key stays on this phone. Claude Pro and Max subscriptions can't sign in to other apps.",
+        (if (connected) "The line you type, your list names and the time go to Anthropic, billed to your key. " +
+            "Haiku is the quickest and cheapest; larger models read tricky lines better but take longer."
+        else "Claude Pro and Max subscriptions can't sign in to other apps, so Lynx uses an API key. " +
+            "The line you type, your list names and the time go to Anthropic, billed to that key.") +
+            if (userId == null) " Sign in to sync the key to your other devices." else "",
         style = LynxType.caption, color = c.muted, modifier = Modifier.padding(horizontal = Sp.s6),
     )
-    if (!connected) {
-        TextAction("Get a key at console.anthropic.com", Modifier.padding(horizontal = Sp.s6)) {
-            ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://console.anthropic.com/settings/keys")))
-        }
+}
+
+/** An error next to the control it is about. */
+@Composable
+private fun ErrorLine(text: String, modifier: Modifier = Modifier) {
+    Row(modifier, horizontalArrangement = Arrangement.spacedBy(Sp.s6), verticalAlignment = Alignment.CenterVertically) {
+        Icon(Icons.Rounded.Error, null, tint = lynx.signal, modifier = Modifier.size(14.dp))
+        Text(text, style = LynxType.caption, color = lynx.signal)
     }
 }
 

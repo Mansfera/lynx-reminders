@@ -289,3 +289,37 @@ class QuickAddReaderTest {
         assertEquals("Milk", q.title); assertTrue(q.allDay); assertEquals("L-g", q.listId); assertEquals(0, q.priority)
     }
 }
+
+/** shared/vectors/secret-seal.json, made with Python's `cryptography`: same bytes on every platform. */
+class SecretSealTest {
+    private val v = kotlinx.serialization.json.Json.parseToJsonElement(
+        java.io.File(System.getProperty("lynx.vectors"), "secret-seal.json").readText(),
+    ).let { it as kotlinx.serialization.json.JsonObject }
+    private fun str(k: String) = (v[k] as kotlinx.serialization.json.JsonPrimitive).content
+    private val sealed = kotlinx.serialization.json.Json.decodeFromJsonElement(SealedSecret.serializer(), v["sealed"]!!)
+
+    @Test fun pbkdf2KnownAnswers() {
+        for (k in v["pbkdf2"] as kotlinx.serialization.json.JsonArray) {
+            val o = k as kotlinx.serialization.json.JsonObject
+            fun s(n: String) = (o[n] as kotlinx.serialization.json.JsonPrimitive).content
+            val dk = SecretSeal.pbkdf2(s("password").toByteArray(), s("salt").toByteArray(), s("iter").toInt())
+            assertEquals(s("dk"), dk.joinToString("") { "%02x".format(it) })
+        }
+    }
+
+    @Test fun sealMatchesVectorAndOpens() {
+        val d = java.util.Base64.getDecoder()
+        val mine = SecretSeal.seal(str("secret"), str("pin"), str("context"), sealed.iter, d.decode(sealed.salt), d.decode(sealed.nonce))
+        assertEquals(sealed, mine)
+        assertEquals(str("secret"), SecretSeal.open(sealed, str("pin"), str("context")))
+        val decomposed = java.text.Normalizer.normalize(str("pin"), java.text.Normalizer.Form.NFD)
+        assertEquals(str("secret"), SecretSeal.open(sealed, decomposed, str("context")))
+    }
+
+    @Test fun wrongPinOtherAccountNewerFormat() {
+        assertTrue(runCatching { SecretSeal.open(sealed, "000000", str("context")) }.exceptionOrNull() is SecretSeal.WrongPin)
+        assertTrue(runCatching { SecretSeal.open(sealed, str("pin"), str("context") + "x") }.exceptionOrNull() is SecretSeal.WrongPin)
+        assertTrue(runCatching { SecretSeal.open(sealed.copy(v = 2), str("pin"), str("context")) }.exceptionOrNull() is SecretSeal.Unsupported)
+        assertTrue(runCatching { SecretSeal.seal("x", "12345", "c") }.exceptionOrNull() is SecretSeal.ShortPin)
+    }
+}

@@ -35,7 +35,7 @@ class AppGraph(app: Application) {
     val client = Supa.create(app)
     val sync = SyncController(app, client, store, scope) { changed -> if (changed) rebuildDeviceSide() }
     val repo = Repository(store, device) { onLocalChange() }
-    val claude = ClaudeService(app)
+    val claude = ClaudeService(app, client)
     val onDevice = OnDeviceAI(scope)
 
     private var rebuildJob: Job? = null

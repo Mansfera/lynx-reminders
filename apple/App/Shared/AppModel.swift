@@ -79,6 +79,8 @@ final class AppModel {
         let s = OnDeviceAI.status
         if s != onDeviceStatus { onDeviceStatus = s }
     }
+    /// Whether this account has a synced (PIN-sealed) Anthropic key on the server; nil until checked or signed out.
+    private(set) var claudeKeySynced: Bool?
     /// Models the connected key can use for quick add (loaded by Settings; empty until then).
     private(set) var claudeModels: [QuickAddAI.ModelOption] = []
 
@@ -232,6 +234,7 @@ final class AppModel {
         engine = nil
         await backend?.signOut()
         user = nil
+        claudeKeySynced = nil
         profile = nil
         store.write { db in
             switch data {
@@ -254,6 +257,7 @@ final class AppModel {
         realtime = nil
         engine = nil
         user = nil
+        claudeKeySynced = nil
         profile = nil
         store.write { $0 = LocalDatabase() }
         db = store.snapshot
@@ -393,6 +397,39 @@ final class AppModel {
         ClaudeKeyStore.delete()
         claudeConnected = false
         claudeModels = []
+    }
+
+    // MARK: Claude key sync (SPEC §7b)
+
+    /// Checks whether the account has a synced key; quietly keeps the last answer when offline.
+    func refreshClaudeSync() async {
+        guard let backend, let me else { claudeKeySynced = nil; return }
+        do { claudeKeySynced = try await backend.syncedClaudeKey(user: me) != nil } catch {}
+    }
+
+    /// Seals this device's key with the PIN and syncs it. PBKDF2 runs off the main thread (about a second).
+    func syncClaudeKey(pin: String) async throws {
+        guard let backend, let me, let key = ClaudeKeyStore.load() else { return }
+        let context = SecretSeal.contextForClaudeKey(user: me)
+        let sealed = try await Task.detached { try SecretSeal.seal(key, pin: pin, context: context) }.value
+        try await backend.saveSyncedClaudeKey(sealed, user: me)
+        claudeKeySynced = true
+    }
+
+    /// Stops syncing: the server copy goes; every device keeps the key it already has.
+    func unsyncClaudeKey() async throws {
+        guard let backend, let me else { return }
+        try await backend.deleteSyncedClaudeKey(user: me)
+        claudeKeySynced = false
+    }
+
+    /// Opens the synced key with the PIN, checks it with Anthropic and keeps it on this device.
+    func unlockSyncedClaudeKey(pin: String) async throws {
+        guard let backend, let me else { return }
+        guard let sealed = try await backend.syncedClaudeKey(user: me) else { claudeKeySynced = false; return }
+        let context = SecretSeal.contextForClaudeKey(user: me)
+        let key = try await Task.detached { try SecretSeal.open(sealed, pin: pin, context: context) }.value
+        try await connectClaude(key)
     }
 
     /// Refreshes the model list; quietly keeps the old one when offline.

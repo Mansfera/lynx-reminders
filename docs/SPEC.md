@@ -334,6 +334,25 @@ reads. The quick-add field shows the reader's name as a text button ("Claude", "
 Intelligence", "Gemini Nano"); tapping it turns AI reading off (struck through) and on. The user
 message also lists the coming week's dates, which small models need to resolve "next Friday".
 
+### 7b. Syncing the Anthropic key
+
+Optional, signed-in accounts only. Settings → Claude → "Sync key to my devices" asks for a PIN
+or passphrase (6+ characters) twice and seals the key on the device: PBKDF2-HMAC-SHA256 over the
+NFC-normalized PIN (16-byte random salt, 600 000 rounds) → AES-256-GCM (12-byte random nonce,
+associated data `lynx/claude-key/v1/<user id>`). The blob
+`{v: 1, kdf: "pbkdf2-sha256", iter, salt, nonce, box}` (base64; `box` = ciphertext‖tag) is
+upserted to `user_secrets.claude_key`, one row per user, readable and writable only by that user
+(RLS) and deleted with the account. The server never sees the PIN or the key. Another device
+signed in to the account and without a key shows "Synced key": the PIN opens it, the key is
+checked with Anthropic like a typed one and kept locally. Turning sync off deletes the server
+copy; devices keep the key they have. Same format on both platforms (`SecretSeal`), checked by
+`shared/vectors/secret-seal.json`, made with an independent implementation.
+
+A short PIN can be guessed offline by anyone holding the server's data; the Settings text says so
+and suggests a passphrase. Passkeys are not used: the WebAuthn PRF output differs per credential,
+Apple and Android passkeys are separate credentials, and the Apple app has no native passkey
+access without a paid developer team.
+
 ## 8. Design system (shared with Lynx Battery)
 
 The Lynx Battery / etherlynx.xyz system. Monochrome Ink on white with the sky scene; color is

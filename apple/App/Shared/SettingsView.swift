@@ -10,6 +10,12 @@ struct SettingsView: View {
     @State private var claudeKey = ""
     @State private var connecting = false
     @State private var claudeError: String?
+    // Key sync (SPEC §7b)
+    @State private var settingUpSync = false
+    @State private var syncPIN = ""
+    @State private var syncPIN2 = ""
+    @State private var unlockPIN = ""
+    @State private var syncBusy = false
     @AppStorage("permissionsHidden") private var permissionsHidden = false
     #if os(macOS)
     @State private var launchAtLogin = LaunchAtLogin.enabled
@@ -128,7 +134,7 @@ struct SettingsView: View {
                 if device.shown {
                     Hairline()
                     FormRow(OnDeviceAI.name) {
-                        Text(device.label).font(Brand.mono(11)).foregroundStyle(pal.muted)
+                        Text(device.label).font(Brand.text(12.5)).foregroundStyle(pal.muted)
                     }
                 }
             }
@@ -144,9 +150,8 @@ struct SettingsView: View {
         Panel(padding: 0) {
             VStack(spacing: 0) {
                 if model.claudeConnected {
-                    FormRow("Anthropic key") {
-                        Text("Connected").font(Brand.mono(11)).foregroundStyle(pal.muted)
-                        SoftButton(title: "Remove", role: .destructive) { model.disconnectClaude() }
+                    DetailRow("Anthropic key", detail: "Connected, billed to your Anthropic account") {
+                        SoftButton(title: "Remove") { model.disconnectClaude() }
                     }
                     Hairline()
                     FormRow("Model") {
@@ -158,33 +163,114 @@ struct SettingsView: View {
                         }
                         .labelsHidden().fixedSize()
                     }
-                } else {
-                    FormRow("Anthropic key") {
-                        SecureField("sk-ant-…", text: $claudeKey)
-                            .textFieldStyle(.plain).font(Brand.mono(12)).frame(maxWidth: 170)
-                            .onSubmit(connectClaude)
-                        if connecting {
-                            ProgressView().controlSize(.small)
-                        } else {
-                            SoftButton(title: "Connect", action: connectClaude)
+                    if model.signedIn {
+                        Hairline()
+                        DetailRow("Sync key to my devices", detail: syncDetail) {
+                            if syncBusy && !settingUpSync { ProgressView().controlSize(.small) }
+                            Toggle("", isOn: Binding(get: { model.claudeKeySynced == true || settingUpSync }, set: { on in
+                                claudeError = nil
+                                if on { settingUpSync = true } else if settingUpSync { cancelSync() } else { stopSync() }
+                            }))
+                            .labelsHidden().toggleStyle(.switch).tint(pal.toggleTint).disabled(syncBusy)
+                        }
+                        if settingUpSync {
+                            Hairline()
+                            syncSetup
                         }
                     }
+                } else {
+                    if model.signedIn, model.claudeKeySynced == true {
+                        syncedKeyUnlock
+                        Hairline()
+                    }
+                    connectKey
+                }
+                if let claudeError, !settingUpSync {
+                    ErrorLine(text: claudeError)
+                        .padding(.horizontal, Brand.Space.l).padding(.bottom, Brand.Space.m)
                 }
             }
+            .animation(Motion.content, value: settingUpSync)
         }
         .task(id: model.claudeConnected) { await model.loadClaudeModels() }
-        if let claudeError {
-            Text(claudeError).font(Brand.caption).foregroundStyle(pal.signal).fixedSize(horizontal: false, vertical: true)
-        }
-        Text("With Claude, the line, your list names and the current time go to Anthropic with your own API key, billed to it. "
-             + "Haiku is the quickest and cheapest; larger models read tricky lines better but take longer. "
-             + "The key stays on this device. Claude Pro and Max subscriptions can't sign in to other apps.")
+        .task(id: model.signedIn) { await model.refreshClaudeSync() }
+        Text(claudeCaption)
             .font(Brand.caption).foregroundStyle(pal.muted).fixedSize(horizontal: false, vertical: true)
-        if !model.claudeConnected {
+    }
+
+    private var syncDetail: String {
+        if settingUpSync { return "Choose a PIN to encrypt it" }
+        return model.claudeKeySynced == true ? "On, encrypted with your PIN" : "Off, the key stays on this device"
+    }
+
+    private var claudeCaption: String {
+        var text = model.claudeConnected
+            ? "The line you type, your list names and the time go to Anthropic, billed to your key. "
+                + "Haiku is the quickest and cheapest; larger models read tricky lines better but take longer."
+            : "Claude Pro and Max subscriptions can't sign in to other apps, so Lynx uses an API key. "
+                + "The line you type, your list names and the time go to Anthropic, billed to that key."
+        if !model.signedIn { text += " Sign in to sync the key to your other devices." }
+        return text
+    }
+
+    private var pinReady: Bool { syncPIN.count >= SecretSeal.minimumPINLength && !syncPIN2.isEmpty }
+
+    /// Choosing the PIN: two full-width fields, what the PIN protects, then the action.
+    private var syncSetup: some View {
+        VStack(alignment: .leading, spacing: Brand.Space.s) {
+            SunkField(placeholder: "PIN or passphrase", text: $syncPIN, secure: true).outlined()
+            SunkField(placeholder: "Repeat it", text: $syncPIN2, secure: true).outlined()
+                .onSubmit { if pinReady { startSync() } }
+            Text("At least \(SecretSeal.minimumPINLength) characters. Lynx's server keeps only the encrypted key; "
+                 + "a longer PIN or a passphrase keeps it safe even if that copy leaked. Each device asks for it once.")
+                .font(Brand.caption).foregroundStyle(pal.muted).fixedSize(horizontal: false, vertical: true)
+            if let claudeError { ErrorLine(text: claudeError) }
+            HStack(spacing: Brand.Space.l) {
+                Spacer()
+                LinkButton(title: "Cancel", action: cancelSync)
+                InkPill(title: "Encrypt and sync", symbol: "lock.fill", busy: syncBusy, action: startSync)
+                    .disabled(!pinReady || syncBusy)
+            }
+            .padding(.top, Brand.Space.xxs)
+        }
+        .padding(Brand.Space.l)
+        .transition(.opacity)
+    }
+
+    /// Another device synced a key: the PIN opens it here.
+    private var syncedKeyUnlock: some View {
+        VStack(alignment: .leading, spacing: Brand.Space.s) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Your key is synced").font(Brand.text(13))
+                Text("Enter the PIN you chose on your other device.")
+                    .font(Brand.caption).foregroundStyle(pal.muted).fixedSize(horizontal: false, vertical: true)
+            }
+            HStack(spacing: Brand.Space.s) {
+                SunkField(placeholder: "PIN or passphrase", text: $unlockPIN, secure: true).outlined()
+                    .onSubmit(unlockSynced)
+                InkPill(title: "Unlock", symbol: "lock.open.fill", busy: syncBusy, action: unlockSynced)
+                    .disabled(unlockPIN.isEmpty || syncBusy)
+            }
+        }
+        .padding(Brand.Space.l)
+    }
+
+    /// No key yet: paste one, or get one from the Anthropic console.
+    private var connectKey: some View {
+        let synced = model.signedIn && model.claudeKeySynced == true
+        return VStack(alignment: .leading, spacing: Brand.Space.s) {
+            Text(synced ? "Or use another key" : "Anthropic API key").font(Brand.text(13))
+            HStack(spacing: Brand.Space.s) {
+                SunkField(placeholder: "sk-ant-…", text: $claudeKey, secure: true).outlined()
+                    .onSubmit(connectClaude)
+                InkPill(title: "Connect", busy: connecting, action: connectClaude)
+                    .disabled(claudeKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || connecting)
+            }
             LinkButton(title: "Get a key at console.anthropic.com") {
                 Platform.open(URL(string: "https://console.anthropic.com/settings/keys")!)
             }
         }
+        .padding(Brand.Space.l)
     }
 
     // MARK: Permissions
@@ -246,6 +332,56 @@ struct SettingsView: View {
         }
     }
 
+    private func startSync() {
+        guard !syncBusy, pinReady else { return }
+        guard syncPIN == syncPIN2 else { claudeError = "The two PINs don't match."; return }
+        claudeError = nil
+        syncBusy = true
+        Task {
+            do {
+                try await model.syncClaudeKey(pin: syncPIN)
+                settingUpSync = false
+                syncPIN = ""
+                syncPIN2 = ""
+            } catch {
+                claudeError = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            }
+            syncBusy = false
+        }
+    }
+
+    private func cancelSync() {
+        settingUpSync = false
+        syncPIN = ""
+        syncPIN2 = ""
+        claudeError = nil
+    }
+
+    private func stopSync() {
+        syncBusy = true
+        Task {
+            do { try await model.unsyncClaudeKey() } catch {
+                claudeError = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            }
+            syncBusy = false
+        }
+    }
+
+    private func unlockSynced() {
+        guard !unlockPIN.isEmpty, !syncBusy else { return }
+        claudeError = nil
+        syncBusy = true
+        Task {
+            do {
+                try await model.unlockSyncedClaudeKey(pin: unlockPIN)
+                unlockPIN = ""
+            } catch {
+                claudeError = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            }
+            syncBusy = false
+        }
+    }
+
     private func connectClaude() {
         let key = claudeKey.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !key.isEmpty, !connecting else { return }
@@ -260,6 +396,59 @@ struct SettingsView: View {
             }
             connecting = false
         }
+    }
+}
+
+/// A title with a line of detail under it, and a control on the right.
+private struct DetailRow<Content: View>: View {
+    let title: String
+    let detail: String
+    @ViewBuilder var content: Content
+    @Environment(\.palette) private var pal
+
+    init(_ title: String, detail: String, @ViewBuilder content: () -> Content) {
+        self.title = title
+        self.detail = detail
+        self.content = content()
+    }
+
+    var body: some View {
+        HStack(spacing: Brand.Space.s) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title).font(Brand.text(13))
+                Text(detail).font(Brand.caption).foregroundStyle(pal.muted).fixedSize(horizontal: false, vertical: true)
+                    .contentTransition(.opacity)
+            }
+            Spacer(minLength: Brand.Space.s)
+            content
+        }
+        .padding(.horizontal, Brand.Space.l)
+        .padding(.vertical, Brand.Space.s)
+        .frame(minHeight: Platform.isMac ? 40 : 44)
+    }
+}
+
+/// A hairline around a field that sits inside a panel, where `sunk` alone barely shows in dark mode.
+private struct Outlined: ViewModifier {
+    @Environment(\.palette) private var pal
+    func body(content: Content) -> some View {
+        content.overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(pal.line))
+    }
+}
+
+private extension View {
+    func outlined() -> some View { modifier(Outlined()) }
+}
+
+/// An error next to the control it is about.
+private struct ErrorLine: View {
+    let text: String
+    @Environment(\.palette) private var pal
+    var body: some View {
+        Label(text, systemImage: "exclamationmark.circle.fill")
+            .font(Brand.caption).foregroundStyle(pal.signal)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 

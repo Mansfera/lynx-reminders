@@ -466,3 +466,56 @@ final class QuickAddReaderTests: XCTestCase {
         XCTAssertTrue(m.contains("Coming days: Sunday 2026-11-15, Monday 2026-11-16,"), m)
     }
 }
+
+/// shared/vectors/secret-seal.json, made with Python's `cryptography`: same bytes on every platform.
+final class SecretSealTests: XCTestCase {
+    struct Vector: Decodable {
+        struct KDF: Decodable { var password: String; var salt: String; var iter: Int; var dk: String }
+        var pin: String
+        var context: String
+        var secret: String
+        var sealed: SealedSecret
+        var pbkdf2: [KDF]
+    }
+
+    var vector: Vector {
+        let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("shared/vectors/secret-seal.json")
+        return try! JSONDecoder().decode(Vector.self, from: Data(contentsOf: url))
+    }
+
+    func testPBKDF2MatchesKnownAnswers() {
+        for k in vector.pbkdf2 {
+            let dk = SecretSeal.pbkdf2(Data(k.password.utf8), salt: Data(k.salt.utf8), iterations: k.iter)
+            XCTAssertEqual(dk.map { String(format: "%02x", $0) }.joined(), k.dk)
+        }
+    }
+
+    func testSealMatchesVectorAndOpens() throws {
+        let v = vector
+        let sealed = try SecretSeal.seal(v.secret, pin: v.pin, context: v.context, iterations: v.sealed.iter,
+                                         salt: Data(base64Encoded: v.sealed.salt)!, nonce: Data(base64Encoded: v.sealed.nonce)!)
+        XCTAssertEqual(sealed, v.sealed)
+        XCTAssertEqual(try SecretSeal.open(v.sealed, pin: v.pin, context: v.context), v.secret)
+        // The PIN is compared after NFC: a decomposed "é" opens it too.
+        XCTAssertEqual(try SecretSeal.open(v.sealed, pin: v.pin.decomposedStringWithCanonicalMapping, context: v.context), v.secret)
+    }
+
+    func testWrongPINOrOtherAccountFails() {
+        let v = vector
+        XCTAssertThrowsError(try SecretSeal.open(v.sealed, pin: "000000", context: v.context)) { XCTAssertEqual($0 as? SecretSeal.Failure, .wrongPIN) }
+        XCTAssertThrowsError(try SecretSeal.open(v.sealed, pin: v.pin, context: v.context + "x")) { XCTAssertEqual($0 as? SecretSeal.Failure, .wrongPIN) }
+        var newer = v.sealed
+        newer.v = 2
+        XCTAssertThrowsError(try SecretSeal.open(newer, pin: v.pin, context: v.context)) { XCTAssertEqual($0 as? SecretSeal.Failure, .unsupported) }
+        XCTAssertThrowsError(try SecretSeal.seal("x", pin: "12345", context: "c")) { XCTAssertEqual($0 as? SecretSeal.Failure, .shortPIN) }
+    }
+
+    func testRandomSaltAndNonceRoundTrip() throws {
+        let a = try SecretSeal.seal("sk-ant-x", pin: "123456", context: "c", iterations: 1000)
+        let b = try SecretSeal.seal("sk-ant-x", pin: "123456", context: "c", iterations: 1000)
+        XCTAssertNotEqual(a.salt, b.salt)
+        XCTAssertNotEqual(a.nonce, b.nonce)
+        XCTAssertEqual(try SecretSeal.open(a, pin: "123456", context: "c"), "sk-ant-x")
+    }
+}

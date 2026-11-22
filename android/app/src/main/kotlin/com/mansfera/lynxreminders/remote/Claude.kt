@@ -1,5 +1,14 @@
 package com.mansfera.lynxreminders.remote
 
+import com.mansfera.lynxreminders.core.SecretSeal
+import com.mansfera.lynxreminders.core.SealedSecret
+import com.mansfera.lynxreminders.core.LynxJson
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+import io.github.jan.supabase.postgrest.postgrest
+import io.github.jan.supabase.SupabaseClient
 import android.content.Context
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
@@ -80,7 +89,7 @@ class ClaudeKeyVault(context: Context) {
 class ClaudeException(message: String) : Exception(message)
 
 /** Quick add read by Claude (SPEC §7a) with the official Anthropic SDK and the user's own key. */
-class ClaudeService(context: Context) {
+class ClaudeService(context: Context, private val supabase: SupabaseClient) {
     private val vault = ClaudeKeyVault(context)
     private val _connected = MutableStateFlow(vault.load() != null)
     val connected: StateFlow<Boolean> = _connected.asStateFlow()
@@ -123,6 +132,52 @@ class ClaudeService(context: Context) {
             }.getOrDefault(false)
             if (ok) QuickAddAI.ModelOption(m.id(), m.displayName()) else null
         }
+
+    // ── Key sync (SPEC §7b): sealed with the user's PIN on the device; the server only stores the blob ──
+
+    private val _synced = MutableStateFlow<Boolean?>(null)
+    /** Whether the account has a synced key on the server; null until checked or when signed out. */
+    val synced: StateFlow<Boolean?> = _synced.asStateFlow()
+
+    @Serializable
+    private data class SecretRow(
+        @SerialName("user_id") val userId: String,
+        @SerialName("claude_key") val claudeKey: SealedSecret,
+        @SerialName("updated_at") val updatedAt: String? = null,
+    )
+
+    private suspend fun fetchSynced(userId: String): SealedSecret? = remote {
+        val data = supabase.postgrest.from("user_secrets").select { filter { eq("user_id", userId) } }.data
+        LynxJson.decodeFromString(ListSerializer(SecretRow.serializer()), data).firstOrNull()?.claudeKey
+    }
+
+    /** Checks whether the account has a synced key; quietly keeps the last answer when offline. */
+    suspend fun refreshSync(userId: String?) {
+        if (userId == null) { _synced.value = null; return }
+        runCatching { fetchSynced(userId) }.onSuccess { _synced.value = it != null }
+    }
+
+    /** Seals this phone's key with the PIN and syncs it. PBKDF2 takes a second or two. */
+    suspend fun sync(pin: String, userId: String) {
+        val key = vault.load() ?: throw ClaudeException("Claude isn't connected.")
+        val sealed = withContext(Dispatchers.Default) { SecretSeal.seal(key, pin, SecretSeal.contextForClaudeKey(userId)) }
+        val row = LynxJson.encodeToJsonElement(SecretRow.serializer(), SecretRow(userId, sealed, Instant.now().toString()))
+        remote { supabase.postgrest.from("user_secrets").upsert(row as JsonObject) }
+        _synced.value = true
+    }
+
+    /** Stops syncing: the server copy goes; every device keeps the key it already has. */
+    suspend fun unsync(userId: String) {
+        remote { supabase.postgrest.from("user_secrets").delete { filter { eq("user_id", userId) } } }
+        _synced.value = false
+    }
+
+    /** Opens the synced key with the PIN, checks it with Anthropic and keeps it on this phone. */
+    suspend fun unlockSynced(pin: String, userId: String): List<QuickAddAI.ModelOption> {
+        val sealed = fetchSynced(userId) ?: run { _synced.value = false; throw ClaudeException("No key is synced any more.") }
+        val key = withContext(Dispatchers.Default) { SecretSeal.open(sealed, pin, SecretSeal.contextForClaudeKey(userId)) }
+        return connect(key)
+    }
 
     fun disconnect() {
         vault.clear()
