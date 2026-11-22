@@ -10,6 +10,8 @@ public struct QuickAddResult: Equatable, Sendable {
     public var listId: UUID?
     /// The `#tag` as typed, when it matched no list.
     public var unknownListTag: String?
+    /// Detail that doesn't fit a short title (only Claude fills this; the local parser never does).
+    public var notes: String?
 }
 
 public enum QuickAddParser {
@@ -148,7 +150,14 @@ public enum QuickAddParser {
 
         result.title = raw.enumerated().filter { !used.contains($0.offset) }.map(\.element).joined(separator: " ")
 
-        // Resolve the due date.
+        resolveDue(&result, day: day, minutes: minutes, absolute: absolute, now: now, timeZone: timeZone)
+        return result
+    }
+
+    /// Turns a day (days since 1970 in local wall time), a time of day or an absolute instant into `dueAt`/`allDay`,
+    /// and anchors the repeat rule on the result. Shared by the local parser and Claude's parse (`QuickAddAI`).
+    static func resolveDue(_ result: inout QuickAddResult, day: Int64?, minutes: Int?, absolute: Date?, now: Date, timeZone: TimeZone) {
+        let nowLocal = WallTime(now, in: timeZone)
         if let absolute {
             result.dueAt = Date(timeIntervalSince1970: (absolute.timeIntervalSince1970 / 60).rounded() * 60)
         } else if let minutes {
@@ -173,7 +182,6 @@ public enum QuickAddParser {
             rule.anchor = Recurrence.anchor(for: due, in: timeZone)
             result.repeat = rule
         }
-        return result
     }
 
     static func nextWeekday(_ wd: Int, from today: Int64, skipWeek: Bool) -> Int64 {

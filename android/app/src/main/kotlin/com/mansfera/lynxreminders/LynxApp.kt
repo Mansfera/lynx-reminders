@@ -7,6 +7,8 @@ import androidx.lifecycle.ProcessLifecycleOwner
 import com.mansfera.lynxreminders.data.DeviceStore
 import com.mansfera.lynxreminders.data.LocalStore
 import com.mansfera.lynxreminders.data.Repository
+import com.mansfera.lynxreminders.remote.ClaudeService
+import com.mansfera.lynxreminders.remote.OnDeviceAI
 import com.mansfera.lynxreminders.notify.AlarmScheduler
 import com.mansfera.lynxreminders.notify.Channels
 import com.mansfera.lynxreminders.notify.ContextFirer
@@ -33,6 +35,8 @@ class AppGraph(app: Application) {
     val client = Supa.create(app)
     val sync = SyncController(app, client, store, scope) { changed -> if (changed) rebuildDeviceSide() }
     val repo = Repository(store, device) { onLocalChange() }
+    val claude = ClaudeService(app)
+    val onDevice = OnDeviceAI(scope)
 
     private var rebuildJob: Job? = null
 

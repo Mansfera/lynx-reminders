@@ -305,6 +305,35 @@ Quick add parses natural language lightly: "tomorrow", "today", "tonight", "mon"
 "at 9", "9:30", "in 2 hours", "every day/week/month", "every 45 min", "!" / "!!" / "!!!"
 priority, "#list" picks a list. Parsing is optional sugar; the editor is the source of truth.
 
+### 7a. Quick add read by Claude
+
+Optional, per device. The user connects their own Anthropic API key in Settings → Claude (Claude
+Pro/Max subscriptions can't sign in to third-party apps, so an API key is how "your Claude" works
+here). The key is checked by listing models (free), then kept on the device only: the
+Keychain on Apple, a Keystore-encrypted `claude-key.bin` (excluded from backups) on Android. It is
+never synced.
+
+With a key connected and "Claude reads new reminders" on, pressing Return in the quick-add field
+sends the line, the list names and the current local time and zone to the chosen model (effort
+`low`, structured output; server-side refusal fallbacks on the models that take them). The model
+defaults to `claude-haiku-5-5`; Settings → Claude → Model lists every model the key can use that
+supports structured outputs, effort `low` and adaptive thinking (from `GET /v1/models`, so new
+models appear without an app update). A saved model the key can no longer use goes back to the
+default. Claude returns `title`, `notes`, `date`,
+`time`, `repeat {unit, interval, weekdays}`, `priority` and `list`; the core (`QuickAddAI`, Swift
+and Kotlin, same prompt and schema) validates those fields and resolves them with the local
+parser's rules. Any failure (no network, bad key, refusal, unreadable answer) falls back to the
+local parser and says so.
+
+The on-device model reads quick add too, where the system has one: Apple Intelligence's
+Foundation Models (iOS/macOS 26, guided generation into the same fields; weak-linked so older
+systems still run) and Gemini Nano through ML Kit's Prompt API and AICore on Android (JSON in the
+prompt, read leniently). It is free and nothing leaves the device. When both it and Claude are
+ready, Settings → AI → "Read with" picks one (Claude by default); otherwise whichever is ready
+reads. The quick-add field shows the reader's name as a text button ("Claude", "Apple
+Intelligence", "Gemini Nano"); tapping it turns AI reading off (struck through) and on. The user
+message also lists the coming week's dates, which small models need to resolve "next Friday".
+
 ## 8. Design system (shared with Lynx Battery)
 
 The Lynx Battery / etherlynx.xyz system. Monochrome Ink on white with the sky scene; color is

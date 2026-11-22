@@ -1,5 +1,8 @@
 package com.mansfera.lynxreminders.ui
 
+import com.mansfera.lynxreminders.remote.OnDeviceAI
+import com.mansfera.lynxreminders.core.QuickAddAI
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import android.Manifest
 import android.content.Intent
 import android.net.Uri
@@ -291,6 +294,8 @@ fun AccountScreen(
                     vm.repo.updateSettings { it.copy(defaultListId = id) }
                 }
             }
+
+            ClaudeSettings(vm, settings)
 
             SectionLabel("Permissions")
             androidx.compose.runtime.key(refresh) {
@@ -675,4 +680,103 @@ fun ShareScreen(vm: AppVM, db: LocalDb, listId: String?, reminderId: String?, on
             Spacer(Modifier.height(Sp.s24))
         }
     }
+}
+
+/**
+ * Claude reads quick add with the user's own Anthropic key (SPEC §7a). Claude subscriptions can't sign in to other
+ * apps, so an API key is the way to use "your" Claude here.
+ */
+@Composable
+private fun ClaudeSettings(vm: AppVM, settings: LynxSettings) {
+    val c = lynx
+    val ctx = LocalContext.current
+    val connected by vm.g.claude.connected.collectAsStateWithLifecycle()
+    val models by vm.g.claude.models.collectAsStateWithLifecycle()
+    LaunchedEffect(connected) {
+        if (connected) {
+            val list = vm.g.claude.loadModels()
+            vm.repo.updateSettings { it.copy(claudeModel = pickModel(it.claudeModel, list)) }
+        }
+    }
+    var key by remember { mutableStateOf("") }
+    var connecting by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+    val connect = {
+        if (key.isNotBlank() && !connecting) {
+            connecting = true; error = null
+            vm.run(onError = { error = it; connecting = false }, onDone = { key = ""; connecting = false }) {
+                val models = vm.g.claude.connect(key)
+                vm.repo.updateSettings { it.copy(aiReadsQuickAdd = true, quickAddReader = "claude", claudeModel = pickModel(it.claudeModel, models)) }
+            }
+        }
+    }
+
+    val device by vm.g.onDevice.status.collectAsStateWithLifecycle()
+    val anyReader = connected || device == OnDeviceAI.Status.AVAILABLE
+    // With no AI on this phone and no Claude key, there is nothing to switch: only the Claude section shows.
+    if (anyReader || device.shown) {
+        SectionLabel("AI")
+        Panel(padding = 0.dp) {
+            SettingRow("AI reads new reminders") {
+                LynxSwitch(settings.aiReadsQuickAdd && anyReader, { v -> if (anyReader) vm.repo.updateSettings { it.copy(aiReadsQuickAdd = v) } })
+            }
+            if (connected && device == OnDeviceAI.Status.AVAILABLE) {
+                Hairline()
+                MenuRow("Read with", if (settings.quickAddReader == "device") OnDeviceAI.NAME else "Claude", listOf(OnDeviceAI.NAME to "device", "Claude" to "claude")) { r ->
+                    vm.repo.updateSettings { it.copy(quickAddReader = r) }
+                }
+            }
+            if (device.shown) {
+                Hairline()
+                SettingRow(OnDeviceAI.NAME, device.label) {
+                    if (device == OnDeviceAI.Status.DOWNLOADABLE) TextAction("Download") { vm.g.onDevice.download() }
+                }
+            }
+        }
+        Text(
+            "AI reads each line you type into “New reminder” and fills in the date, repeat, priority and list. " +
+                "Tap its name in the field to turn it off." +
+                if (device.shown) " ${OnDeviceAI.NAME} runs on this phone: free, and nothing leaves it." else "",
+            style = LynxType.caption, color = c.muted, modifier = Modifier.padding(horizontal = Sp.s6),
+        )
+
+    }
+
+    SectionLabel("Claude")
+    Panel(padding = 0.dp) {
+        if (connected) {
+            SettingRow("Anthropic key", "Connected") {
+                TextAction("Remove", color = c.signal) { vm.g.claude.disconnect() }
+            }
+            Hairline()
+            MenuRow("Model", models.firstOrNull { it.id == settings.claudeModel }?.name ?: settings.claudeModel, models.map { it.name to it.id }) { id ->
+                vm.repo.updateSettings { it.copy(claudeModel = id) }
+            }
+        } else {
+            Column(Modifier.padding(horizontal = Sp.s14, vertical = Sp.s10), verticalArrangement = Arrangement.spacedBy(Sp.s6)) {
+                Text("Anthropic key", style = LynxType.rowMedium, color = c.fg)
+                LynxField(key, { key = it.trim() }, "sk-ant-…", password = true, keyboardType = KeyboardType.Password, onDone = connect)
+                InkPill(if (connecting) "Checking…" else "Connect", Icons.AutoMirrored.Rounded.ArrowForward, enabled = key.isNotBlank() && !connecting, onClick = connect)
+            }
+        }
+    }
+    error?.let { Text(it, style = LynxType.caption, color = c.signal, modifier = Modifier.padding(horizontal = Sp.s6)) }
+    Text(
+        "With Claude, the line, your list names and the current time go to Anthropic with your own API key, billed to it. " +
+            "Haiku is the quickest and cheapest; larger models read tricky lines better but take longer. " +
+            "The key stays on this phone. Claude Pro and Max subscriptions can't sign in to other apps.",
+        style = LynxType.caption, color = c.muted, modifier = Modifier.padding(horizontal = Sp.s6),
+    )
+    if (!connected) {
+        TextAction("Get a key at console.anthropic.com", Modifier.padding(horizontal = Sp.s6)) {
+            ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://console.anthropic.com/settings/keys")))
+        }
+    }
+}
+
+/** Keeps the chosen model while the key can use it; otherwise the default (or the newest usable one). */
+private fun pickModel(current: String, models: List<QuickAddAI.ModelOption>): String = when {
+    models.isEmpty() || models.any { it.id == current } -> current
+    models.any { it.id == QuickAddAI.DEFAULT_MODEL } -> QuickAddAI.DEFAULT_MODEL
+    else -> models.first().id
 }

@@ -294,18 +294,30 @@ struct QuickAddField: View {
     @Environment(AppModel.self) private var model
     @Environment(\.palette) private var pal
     @State private var text = ""
+    @State private var reading = false
     @FocusState private var focused: Bool
 
     var body: some View {
-        let preview = text.isEmpty ? nil : QuickAddParser.parse(text, lists: model.db.visibleLists, now: Date())
+        let reader = model.quickAddReader
+        let ai = model.aiReadsQuickAdd
+        let preview = text.isEmpty || ai ? nil : QuickAddParser.parse(text, lists: model.db.visibleLists, now: Date())
         VStack(alignment: .leading, spacing: Brand.Space.xs) {
             HStack(spacing: Brand.Space.m) {
                 Image(systemName: "plus").font(.system(size: 12, weight: .bold)).foregroundStyle(pal.muted).frame(width: 20)
-                TextField("New reminder — try “tomorrow at 9 #home”", text: $text)
+                TextField(ai && reader != nil ? "New reminder — \(model.readerName(reader!)) reads it" : "New reminder — try “tomorrow at 9 #home”", text: $text)
                     .textFieldStyle(.plain)
                     .font(Brand.row)
                     .focused($focused)
+                    .disabled(reading)
                     .onSubmit(add)
+                if reading {
+                    ProgressView().controlSize(.small)
+                    Text("Reading…").font(Brand.mono(10.5)).foregroundStyle(pal.muted)
+                } else if let reader {
+                    ReaderToggle(name: model.readerName(reader), on: ai, onDevice: reader == .device) {
+                        model.settings.aiReadsQuickAdd.toggle()
+                    }
+                }
             }
             .padding(.horizontal, Brand.Space.l).padding(.vertical, Brand.Space.m)
             .background(pal.sunk, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
@@ -315,6 +327,7 @@ struct QuickAddField: View {
             }
         }
         .onChange(of: model.focusQuickAdd) { _, _ in focused = true }
+        .onAppear { model.refreshOnDevice() }
     }
 
     private func hint(_ p: QuickAddResult) -> String? {
@@ -328,16 +341,60 @@ struct QuickAddField: View {
     }
 
     private func add() {
+        let typed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !typed.isEmpty, !reading else { return }
         var list: UUID? = intoDefaultList ? model.defaultList?.id : nil
         if case .list(let id) = item { list = id }
-        var input = text
-        // In Today, a reminder without a date is for today.
-        if item == .smart(.today), QuickAddParser.parse(text, lists: model.db.visibleLists, now: Date()).dueAt == nil { input += " today" }
-        if let r = model.quickAdd(input, list: list, flagged: item == .smart(.flagged)) {
-            model.selectedReminder = r.id
+        let item = item
+        if !model.aiReadsQuickAdd {
+            var input = typed
+            // In Today, a reminder without a date is for today.
+            if item == .smart(.today), QuickAddParser.parse(typed, lists: model.db.visibleLists, now: Date()).dueAt == nil { input += " today" }
+            if let r = model.quickAdd(input, list: list, flagged: item == .smart(.flagged)) { model.selectedReminder = r.id }
+            text = ""
+            focused = true
+            return
         }
-        text = ""
-        focused = true
+        reading = true
+        Task {
+            var parsed = await model.readQuickAdd(typed)
+            if item == .smart(.today), parsed.dueAt == nil {
+                parsed.dueAt = WallTime.atDay(WallTime(Date(), in: .current).days, secondOfDay: 0).instant(in: .current)
+                parsed.allDay = true
+            }
+            // Opens the new reminder, so a misread is one edit away.
+            if let r = model.quickAdd(parsed, typed: typed, list: list, flagged: item == .smart(.flagged)) { model.selectedReminder = r.id }
+            reading = false
+            text = ""
+            focused = true
+        }
+    }
+}
+
+/// The quick-add field's AI label: names who reads the line (text, not a bare sparkle) and turns it off and on.
+struct ReaderToggle: View {
+    let name: String
+    let on: Bool
+    let onDevice: Bool
+    let action: () -> Void
+    @Environment(\.palette) private var pal
+
+    var body: some View {
+        Button(action: action) {
+            Text(name)
+                .font(Brand.mono(10.5))
+                .strikethrough(!on, color: pal.muted)
+                .foregroundStyle(on ? pal.ink2 : pal.muted)
+                .padding(.horizontal, Brand.Space.s).padding(.vertical, 3)
+                .background(on ? pal.bg : .clear, in: Capsule())
+                .overlay(Capsule().stroke(pal.line, lineWidth: on ? 0 : 1))
+                .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .help(on ? "\(name) reads new reminders\(onDevice ? " on this device" : " (your Anthropic key)"). Click to turn off." : "Off: new reminders use the built-in parser. Click to turn \(name) on.")
+        .accessibilityLabel("\(name) reads new reminders")
+        .accessibilityValue(on ? "On" : "Off")
+        .accessibilityAddTraits(.isToggle)
     }
 }
 

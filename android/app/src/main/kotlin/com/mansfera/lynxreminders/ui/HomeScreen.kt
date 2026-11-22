@@ -1,5 +1,8 @@
 package com.mansfera.lynxreminders.ui
 
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.border
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -39,6 +42,8 @@ import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.PersonOutline
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.Icon
+import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -345,11 +350,23 @@ fun ListNavRow(
     }
 }
 
-/** Bottom dock: quick-add field (light natural-language parsing) and the round Ink "+" button. */
+/**
+ * Who can read quick add ([reader]: "Claude", "Gemini Nano", or null for none), whether it's [on], the line it is
+ * reading right now, and how to turn it off and on (AppRoot provides it).
+ */
+data class QuickAddMode(val reader: String? = null, val on: Boolean = false, val reading: String? = null, val onToggle: () -> Unit = {})
+
+val LocalQuickAddMode = compositionLocalOf { QuickAddMode() }
+
+/** Bottom dock: quick-add field (light natural-language parsing, or Claude) and the round Ink "+" button. */
 @Composable
 fun QuickAddBar(hint: String, onAdd: (String) -> Unit, onExpand: () -> Unit) {
     val c = lynx
+    val mode = LocalQuickAddMode.current
+    val busy = mode.reading != null
     var text by rememberSaveable { mutableStateOf("") }
+    // While Claude reads one line, a new one waits in the field.
+    val submit = { if (text.isNotBlank() && !busy) { onAdd(text); text = "" } }
     Column(Modifier.fillMaxWidth().background(c.bg)) {
         Hairline()
         Row(
@@ -357,14 +374,41 @@ fun QuickAddBar(hint: String, onAdd: (String) -> Unit, onExpand: () -> Unit) {
             verticalAlignment = Alignment.CenterVertically,
         ) {
             LynxField(
-                value = text, onValueChange = { text = it }, placeholder = hint,
+                value = text, onValueChange = { text = it },
+                placeholder = when {
+                    busy -> "Reading “${mode.reading}”…"
+                    mode.on && mode.reader != null -> "$hint — ${mode.reader} reads it"
+                    else -> hint
+                },
                 modifier = Modifier.weight(1f),
-                onDone = { if (text.isNotBlank()) { onAdd(text); text = "" } },
+                onDone = submit,
             )
+            if (busy) {
+                CircularProgressIndicator(Modifier.padding(horizontal = Sp.s6).size(16.dp), color = c.muted, strokeWidth = 2.dp)
+            } else if (mode.reader != null) {
+                ReaderToggle(mode.reader, mode.on, mode.onToggle)
+            }
             RoundIconButton(Icons.Rounded.Add, if (text.isBlank()) "New reminder with details" else "Add reminder") {
-                if (text.isBlank()) onExpand() else { onAdd(text); text = "" }
+                if (text.isBlank()) onExpand() else submit()
             }
         }
     }
 }
 
+/** The quick-add field's AI label: names who reads the line (text, not a bare sparkle) and turns it off and on. */
+@Composable
+private fun ReaderToggle(name: String, on: Boolean, onToggle: () -> Unit) {
+    val c = lynx
+    Text(
+        name,
+        style = LynxType.monoSmall.copy(textDecoration = if (on) null else TextDecoration.LineThrough),
+        color = if (on) c.ink2 else c.muted,
+        modifier = Modifier
+            .padding(horizontal = Sp.s6)
+            .clip(CircleShape)
+            .then(if (on) Modifier.background(c.bg) else Modifier.border(1.dp, c.line, CircleShape))
+            .toggleable(value = on, role = Role.Switch, onValueChange = { onToggle() })
+            .semantics { contentDescription = "$name reads new reminders" }
+            .padding(horizontal = 8.dp, vertical = 6.dp),
+    )
+}

@@ -8,14 +8,21 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.mansfera.lynxreminders.LynxApp
+import com.mansfera.lynxreminders.core.ListRow
+import com.mansfera.lynxreminders.core.QuickAddAI
+import com.mansfera.lynxreminders.core.QuickAddParser
+import com.mansfera.lynxreminders.core.QuickAddResult
 import com.mansfera.lynxreminders.core.SmartList
+import com.mansfera.lynxreminders.remote.ClaudeException
 import com.mansfera.lynxreminders.remote.PasskeyCancelled
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.time.Instant
+import java.time.ZoneId
 
 sealed interface Route {
     data object Home : Route
@@ -58,6 +65,33 @@ class AppVM(app: Application) : AndroidViewModel(app) {
     }
 
     fun tick() { _now.value = Instant.now() }
+
+    /** The quick-add line AI is reading right now (SPEC §7a), or null. */
+    var claudeReading by mutableStateOf<String?>(null)
+        private set
+
+    /**
+     * Reads a quick-add line with Claude or Gemini Nano; on any failure the local parser's reading is used and
+     * [onDone] gets a short reason to show.
+     */
+    fun readWithAI(reader: QuickAddAI.Reader, text: String, lists: List<ListRow>, onDone: (QuickAddResult, String?) -> Unit) {
+        claudeReading = text
+        viewModelScope.launch {
+            val zone = ZoneId.systemDefault()
+            val (q, error) = try {
+                when (reader) {
+                    QuickAddAI.Reader.CLAUDE -> g.claude.read(text, g.device.value.settings.claudeModel, lists, Instant.now(), zone)
+                    QuickAddAI.Reader.DEVICE -> g.onDevice.read(text, lists, Instant.now(), zone)
+                } to null
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                QuickAddParser.parse(text, Instant.now(), zone, lists) to (if (e is ClaudeException || e is IllegalStateException) e.message else friendlyError(e))
+            }
+            claudeReading = null
+            onDone(q, error)
+        }
+    }
 
     var lastNav by mutableStateOf(Nav.Reset)
         private set

@@ -110,6 +110,7 @@ struct MenuBarView: View {
     @Environment(\.palette) private var pal
     @Environment(\.openWindow) private var openWindow
     @State private var text = ""
+    @State private var reading = false
 
     var body: some View {
         let q = model.queries
@@ -126,13 +127,32 @@ struct MenuBarView: View {
             }
             HStack(spacing: Brand.Space.s) {
                 Image(systemName: "plus").font(.system(size: 11, weight: .bold)).foregroundStyle(pal.muted)
-                TextField("New reminder", text: $text).textFieldStyle(.plain).font(Brand.row)
+                TextField(model.aiReadsQuickAdd ? "New reminder — \(model.readerName(model.quickAddReader!)) reads it" : "New reminder", text: $text)
+                    .textFieldStyle(.plain).font(Brand.row)
+                    .disabled(reading)
                     .onSubmit {
-                        var input = text
-                        if QuickAddParser.parse(text, lists: model.db.visibleLists, now: Date()).dueAt == nil { input += " today" }
-                        model.quickAdd(input, list: model.defaultList?.id)
-                        text = ""
+                        let typed = text
+                        guard !reading, !typed.trimmingCharacters(in: .whitespaces).isEmpty else { return }
+                        guard model.aiReadsQuickAdd else {
+                            var input = typed
+                            if QuickAddParser.parse(typed, lists: model.db.visibleLists, now: Date()).dueAt == nil { input += " today" }
+                            model.quickAdd(input, list: model.defaultList?.id)
+                            text = ""
+                            return
+                        }
+                        reading = true
+                        Task {
+                            var parsed = await model.readQuickAdd(typed)
+                            if parsed.dueAt == nil {
+                                parsed.dueAt = WallTime.atDay(WallTime(Date(), in: .current).days, secondOfDay: 0).instant(in: .current)
+                                parsed.allDay = true
+                            }
+                            model.quickAdd(parsed, typed: typed, list: model.defaultList?.id)
+                            reading = false
+                            text = ""
+                        }
                     }
+                if reading { ProgressView().controlSize(.mini) }
             }
             .padding(.horizontal, Brand.Space.m).padding(.vertical, Brand.Space.s)
             .background(pal.sunk, in: RoundedRectangle(cornerRadius: 12, style: .continuous))

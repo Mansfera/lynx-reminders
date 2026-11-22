@@ -49,6 +49,11 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import com.mansfera.lynxreminders.core.QuickAddParser
+import com.mansfera.lynxreminders.remote.OnDeviceAI
+import com.mansfera.lynxreminders.core.QuickAddAI
+import com.mansfera.lynxreminders.core.QuickAddResult
+import androidx.compose.runtime.CompositionLocalProvider
+import android.widget.Toast
 import com.mansfera.lynxreminders.core.ReminderRow
 import com.mansfera.lynxreminders.core.SmartList
 import com.mansfera.lynxreminders.triggers.Perms
@@ -70,7 +75,7 @@ fun AppRoot(vm: AppVM) {
     var permTick by remember { mutableIntStateOf(0) }
 
     val lifecycle = LocalLifecycleOwner.current.lifecycle
-    LaunchedEffect(lifecycle) { lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) { vm.tick(); permTick++ } }
+    LaunchedEffect(lifecycle) { lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) { vm.tick(); permTick++; vm.g.onDevice.refresh() } }
 
     val notifLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { permTick++ }
     val top = vm.stack.lastOrNull() ?: Route.Home
@@ -87,14 +92,26 @@ fun AppRoot(vm: AppVM) {
         onOpen = { vm.push(Route.Editor(it.id)) },
     )
 
+    val claudeConnected by vm.g.claude.connected.collectAsStateWithLifecycle()
+    val deviceStatus by vm.g.onDevice.status.collectAsStateWithLifecycle()
+    val reader = QuickAddAI.activeReader(QuickAddAI.Reader.of(settings.quickAddReader), claudeConnected, deviceStatus == OnDeviceAI.Status.AVAILABLE)
+    val aiOn = reader != null && settings.aiReadsQuickAdd
+
     fun quickAdd(text: String, route: Route?) {
         val listId = (route as? Route.ListR)?.id
-        var q = QuickAddParser.parse(text, Instant.now(), ZoneId.systemDefault(), db.visibleLists())
-        if (route == Route.Smart(SmartList.TODAY) && q.dueAt == null) {
-            q = q.copy(dueAt = LocalDate.now().atStartOfDay(ZoneId.systemDefault()).toInstant(), allDay = true)
+        fun add(parsed: QuickAddResult) {
+            var q = parsed
+            if (route == Route.Smart(SmartList.TODAY) && q.dueAt == null) {
+                q = q.copy(dueAt = LocalDate.now().atStartOfDay(ZoneId.systemDefault()).toInstant(), allDay = true)
+            }
+            val r = vm.repo.addQuick(q, listId)
+            if (route == Route.Smart(SmartList.FLAGGED)) vm.repo.setFlag(r.id, true)
         }
-        val r = vm.repo.addQuick(q, listId)
-        if (route == Route.Smart(SmartList.FLAGGED)) vm.repo.setFlag(r.id, true)
+        if (!aiOn || reader == null) return add(QuickAddParser.parse(text, Instant.now(), ZoneId.systemDefault(), db.visibleLists()))
+        vm.readWithAI(reader, text.trim(), db.visibleLists()) { q, error ->
+            add(q)
+            if (error != null) Toast.makeText(ctx, "$error Added it as typed.", Toast.LENGTH_LONG).show()
+        }
     }
 
     val banner: (@Composable () -> Unit)? = remember(permTick, settings) {
@@ -115,6 +132,12 @@ fun AppRoot(vm: AppVM) {
 
     BackHandler(enabled = vm.stack.size > 1) { vm.pop() }
 
+    CompositionLocalProvider(LocalQuickAddMode provides QuickAddMode(
+        reader = reader?.let { if (it == QuickAddAI.Reader.CLAUDE) "Claude" else OnDeviceAI.NAME },
+        on = aiOn,
+        reading = vm.claudeReading,
+        onToggle = { vm.repo.updateSettings { it.copy(aiReadsQuickAdd = !it.aiReadsQuickAdd) } },
+    )) {
     BoxWithConstraints(Modifier.fillMaxSize().background(c.bg)) {
         val wide = maxWidth >= 840.dp
         // Wide: home, lists and the editor share one list-detail screen, which animates inside itself.
@@ -211,6 +234,7 @@ fun AppRoot(vm: AppVM) {
                 }
             }
         }
+    }
     }
 
     // Edge-to-edge: scrolled content passes under a bg-colored status bar strip instead of colliding with the icons

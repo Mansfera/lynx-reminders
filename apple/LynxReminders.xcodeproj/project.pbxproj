@@ -25,8 +25,10 @@
 		52C1A4551F86B19D8408874F /* DemoData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2680F1BF39C3B3D98CBC2536 /* DemoData.swift */; };
 		5A60D47C74DF9D6465B808E1 /* TriggerPickers.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8D7AFC5916DD0DFD8B76BFD /* TriggerPickers.swift */; };
 		5C32A628492E5F7277C0F02A /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = CBEBC9FE0535C81CD51695D9 /* AppIcon.icon */; };
+		7390ADCA68C252D2EDD446D3 /* OnDeviceAI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C53EEACA92A10CD95DD5BD2 /* OnDeviceAI.swift */; };
 		753EDD511BCE0F6ACFA98113 /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04B78D385C692CCB8072659C /* AppSettings.swift */; };
 		7697F9D98830E73B11224B90 /* LynxRemindersApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D268D2BCC0EE9B648B90588 /* LynxRemindersApp.swift */; };
+		769E8DD72B2215B817DA4744 /* OnDeviceAI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C53EEACA92A10CD95DD5BD2 /* OnDeviceAI.swift */; };
 		82C9A101B53D48A28BAC0BCD /* RepeatEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B4D546D9E0CDD26D78EE4D0 /* RepeatEditor.swift */; };
 		8648091472BB34A47F2877D7 /* AccountViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36D99DD79AAE03239A264497 /* AccountViews.swift */; };
 		8699580E36959B83D6841CC4 /* ReminderListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF041EF56AB2B711F731B64E /* ReminderListView.swift */; };
@@ -47,6 +49,7 @@
 		C7D15F602F122502C11C8A78 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A229643B70B2258D191BCAB2 /* SettingsView.swift */; };
 		CE525EF38688BDB03FA5CCFF /* NotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D212C565AA0027E93F1CCFAB /* NotificationService.swift */; };
 		CF0D14FBD5D84FAA06943729 /* TriggerService.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE14C1143CAD12649B4EC169 /* TriggerService.swift */; };
+		D12F1732C3577E1333FA84FF /* Claude.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C872428D366286F0FD4442A /* Claude.swift */; };
 		D2D4F08ADD2880FE4488B2FE /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82300C29923D670FEEC3871B /* AppModel.swift */; };
 		DCE49E7B53D864AC07F727F1 /* Sheets.swift in Sources */ = {isa = PBXBuildFile; fileRef = A43AE029A264641041709BF0 /* Sheets.swift */; };
 		DFD87A6736A18C8AC42EB1C3 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A229643B70B2258D191BCAB2 /* SettingsView.swift */; };
@@ -55,6 +58,7 @@
 		E5112324804E2BC47C3FC05A /* MainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0989762E767BAB77BAD30675 /* MainView.swift */; };
 		E5997993C422EF7E81985870 /* Platform.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCC648539CE78C82CEF87CF8 /* Platform.swift */; };
 		EACB0B56225754E88D9971AC /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04B78D385C692CCB8072659C /* AppSettings.swift */; };
+		EAFF695EF3879C39D685485E /* Claude.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C872428D366286F0FD4442A /* Claude.swift */; };
 		ECC11849AB6018D526D4D0BD /* ReminderDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DEF5A42C5F26BC00B5F97A8 /* ReminderDetailView.swift */; };
 		ED09191042560E72FB68B764 /* SidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69A7C2C7771DC3A2FE59D668 /* SidebarView.swift */; };
 		EFBFFDBC6D7F72994EE7A613 /* Sheets.swift in Sources */ = {isa = PBXBuildFile; fileRef = A43AE029A264641041709BF0 /* Sheets.swift */; };
@@ -71,6 +75,7 @@
 		1DEF5A42C5F26BC00B5F97A8 /* ReminderDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReminderDetailView.swift; sourceTree = "<group>"; };
 		1F6DDC86F777F1A18703473C /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		2680F1BF39C3B3D98CBC2536 /* DemoData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoData.swift; sourceTree = "<group>"; };
+		2C53EEACA92A10CD95DD5BD2 /* OnDeviceAI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnDeviceAI.swift; sourceTree = "<group>"; };
 		36D99DD79AAE03239A264497 /* AccountViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountViews.swift; sourceTree = "<group>"; };
 		3B4D546D9E0CDD26D78EE4D0 /* RepeatEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RepeatEditor.swift; sourceTree = "<group>"; };
 		3D268D2BCC0EE9B648B90588 /* LynxRemindersApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LynxRemindersApp.swift; sourceTree = "<group>"; };
@@ -81,6 +86,7 @@
 		5AB7537A8062607B8DE3C1EE /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		69A7C2C7771DC3A2FE59D668 /* SidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarView.swift; sourceTree = "<group>"; };
 		736763499B3235D6051C0E14 /* MacTriggers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacTriggers.swift; sourceTree = "<group>"; };
+		7C872428D366286F0FD4442A /* Claude.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Claude.swift; sourceTree = "<group>"; };
 		801F8B489291E33B48C0EFC9 /* TodayStage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TodayStage.swift; sourceTree = "<group>"; };
 		82300C29923D670FEEC3871B /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
 		A229643B70B2258D191BCAB2 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
@@ -135,11 +141,13 @@
 				82300C29923D670FEEC3871B /* AppModel.swift */,
 				04B78D385C692CCB8072659C /* AppSettings.swift */,
 				47CE88189CBB662D9C1B10DE /* Brand.swift */,
+				7C872428D366286F0FD4442A /* Claude.swift */,
 				2680F1BF39C3B3D98CBC2536 /* DemoData.swift */,
 				5A844995D3379072C45609FA /* Formats.swift */,
 				3D268D2BCC0EE9B648B90588 /* LynxRemindersApp.swift */,
 				0989762E767BAB77BAD30675 /* MainView.swift */,
 				D212C565AA0027E93F1CCFAB /* NotificationService.swift */,
+				2C53EEACA92A10CD95DD5BD2 /* OnDeviceAI.swift */,
 				CCC648539CE78C82CEF87CF8 /* Platform.swift */,
 				1DEF5A42C5F26BC00B5F97A8 /* ReminderDetailView.swift */,
 				CF041EF56AB2B711F731B64E /* ReminderListView.swift */,
@@ -342,12 +350,14 @@
 				D2D4F08ADD2880FE4488B2FE /* AppModel.swift in Sources */,
 				753EDD511BCE0F6ACFA98113 /* AppSettings.swift in Sources */,
 				41C212B063E2E2B8301C8EA5 /* Brand.swift in Sources */,
+				EAFF695EF3879C39D685485E /* Claude.swift in Sources */,
 				52C1A4551F86B19D8408874F /* DemoData.swift in Sources */,
 				0A474D95BD861D69A6D29E64 /* FireTriggerIntent.swift in Sources */,
 				4611C48557E525ED8AF8C759 /* Formats.swift in Sources */,
 				7697F9D98830E73B11224B90 /* LynxRemindersApp.swift in Sources */,
 				E5112324804E2BC47C3FC05A /* MainView.swift in Sources */,
 				CE525EF38688BDB03FA5CCFF /* NotificationService.swift in Sources */,
+				769E8DD72B2215B817DA4744 /* OnDeviceAI.swift in Sources */,
 				E5997993C422EF7E81985870 /* Platform.swift in Sources */,
 				FD979030F817A01913013D34 /* ReminderDetailView.swift in Sources */,
 				8699580E36959B83D6841CC4 /* ReminderListView.swift in Sources */,
@@ -369,6 +379,7 @@
 				2F32696090A13B3912F68485 /* AppModel.swift in Sources */,
 				EACB0B56225754E88D9971AC /* AppSettings.swift in Sources */,
 				C553E314C58743431AD6D141 /* Brand.swift in Sources */,
+				D12F1732C3577E1333FA84FF /* Claude.swift in Sources */,
 				F4759A50F8874B4FE66952C1 /* DemoData.swift in Sources */,
 				968D903FED2AB7A4BFAAA8F7 /* Formats.swift in Sources */,
 				2D2E71BFDD97910636B4990F /* LynxRemindersApp.swift in Sources */,
@@ -376,6 +387,7 @@
 				A70218D9E790A1BC48BA716C /* MacTriggers.swift in Sources */,
 				8A1CCD5A98A4734A97041500 /* MainView.swift in Sources */,
 				9076E9A8C296440E32DEB248 /* NotificationService.swift in Sources */,
+				7390ADCA68C252D2EDD446D3 /* OnDeviceAI.swift in Sources */,
 				E01F0981038A351CF80A5423 /* Platform.swift in Sources */,
 				ECC11849AB6018D526D4D0BD /* ReminderDetailView.swift in Sources */,
 				2AFC28FCA38A218E25448D71 /* ReminderListView.swift in Sources */,
@@ -481,6 +493,11 @@
 				MARKETING_VERSION = 0.1.3;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-weak_framework",
+					FoundationModels,
+				);
 				PRODUCT_BUNDLE_IDENTIFIER = xyz.etherlynx.reminders;
 				PRODUCT_NAME = "Lynx Reminders";
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -571,6 +588,11 @@
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-weak_framework",
+					FoundationModels,
+				);
 				PRODUCT_BUNDLE_IDENTIFIER = xyz.etherlynx.reminders;
 				PRODUCT_NAME = "Lynx Reminders";
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;

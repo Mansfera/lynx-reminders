@@ -54,6 +54,29 @@ final class AppModel {
     var shareReminderTarget: UUID?
     var toast: String?
 
+    // Claude (the user's own Anthropic key)
+    /// Whether an Anthropic key is saved on this device. Demo runs never touch the Keychain.
+    private(set) var claudeConnected = ProcessInfo.processInfo.environment["LYNX_DATA_DIR"] == nil && ClaudeKeyStore.load() != nil
+    /// Apple Intelligence's on-device model, as last checked (`refreshOnDevice()`).
+    private(set) var onDeviceStatus = OnDeviceAI.status
+    /// The AI that reads quick add when it's on: the chosen one if ready, else whichever is. Nil: none is ready.
+    var quickAddReader: QuickAddAI.Reader? {
+        QuickAddAI.activeReader(preferred: settings.quickAddReader, claudeConnected: claudeConnected,
+                                deviceAvailable: onDeviceStatus == .available)
+    }
+    /// Quick add goes through AI (the field's label turns this off and on).
+    var aiReadsQuickAdd: Bool { quickAddReader != nil && settings.aiReadsQuickAdd }
+
+    func readerName(_ r: QuickAddAI.Reader) -> String { r == .claude ? "Claude" : OnDeviceAI.name }
+
+    /// Apple Intelligence can be turned on or finish downloading while the app runs.
+    func refreshOnDevice() {
+        let s = OnDeviceAI.status
+        if s != onDeviceStatus { onDeviceStatus = s }
+    }
+    /// Models the connected key can use for quick add (loaded by Settings; empty until then).
+    private(set) var claudeModels: [QuickAddAI.ModelOption] = []
+
     @ObservationIgnored private var clock: Timer?
     @ObservationIgnored private var observer: UUID?
     @ObservationIgnored private var started = false
@@ -322,7 +345,65 @@ final class AppModel {
     func quickAdd(_ text: String, list: UUID? = nil, parent: UUID? = nil, flagged: Bool = false) -> Reminder? {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
-        let parsed = QuickAddParser.parse(trimmed, lists: db.visibleLists, now: Date())
+        return quickAdd(QuickAddParser.parse(trimmed, lists: db.visibleLists, now: Date()), typed: trimmed,
+                        list: list, parent: parent, flagged: flagged)
+    }
+
+    /// Reads a quick-add line with Claude or the on-device model (SPEC §7a); the local parser answers when AI is off
+    /// or fails.
+    func readQuickAdd(_ text: String) async -> QuickAddResult {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let local = QuickAddParser.parse(trimmed, lists: db.visibleLists, now: Date())
+        guard aiReadsQuickAdd, let reader = quickAddReader else { return local }
+        do {
+            switch reader {
+            case .claude:
+                guard let key = ClaudeKeyStore.load() else { return local }
+                return try await ClaudeClient(apiKey: key).readQuickAdd(trimmed, model: settings.claudeModel, lists: db.visibleLists, now: Date())
+            case .device:
+                return try await OnDeviceAI.read(trimmed, lists: db.visibleLists, now: Date())
+            }
+        } catch {
+            let why = (error as? LocalizedError)?.errorDescription ?? "\(readerName(reader)) couldn't read it."
+            toast = "\(why) Added it as typed."
+            return local
+        }
+    }
+
+    /// Checks the key with Anthropic, then keeps it in the Keychain.
+    func connectClaude(_ key: String) async throws {
+        let key = key.trimmingCharacters(in: .whitespacesAndNewlines)
+        let models = try await ClaudeClient(apiKey: key).models()
+        guard ClaudeKeyStore.save(key) else { throw ClaudeError.http(0, "The key couldn't be saved in the Keychain.") }
+        claudeConnected = true
+        settings.aiReadsQuickAdd = true
+        settings.quickAddReader = .claude
+        adoptClaudeModels(models)
+    }
+
+    func disconnectClaude() {
+        ClaudeKeyStore.delete()
+        claudeConnected = false
+        claudeModels = []
+    }
+
+    /// Refreshes the model list; quietly keeps the old one when offline.
+    func loadClaudeModels() async {
+        guard claudeConnected, let key = ClaudeKeyStore.load(), let models = try? await ClaudeClient(apiKey: key).models() else { return }
+        adoptClaudeModels(models)
+    }
+
+    private func adoptClaudeModels(_ models: [QuickAddAI.ModelOption]) {
+        claudeModels = models
+        // A model the key can no longer use (retired, or no access) goes back to the default.
+        if !models.isEmpty, !models.contains(where: { $0.id == settings.claudeModel }) {
+            settings.claudeModel = models.contains(where: { $0.id == QuickAddAI.defaultModel }) ? QuickAddAI.defaultModel : models[0].id
+        }
+    }
+
+    /// Adds a reminder from an already parsed quick-add line.
+    @discardableResult
+    func quickAdd(_ parsed: QuickAddResult, typed trimmed: String, list: UUID? = nil, parent: UUID? = nil, flagged: Bool = false) -> Reminder? {
         let parentRow = parent.flatMap { db.reminders[$0] }
         guard let listId = parentRow?.listId ?? parsed.listId ?? list ?? currentListForNew else { return nil }
         var r = Reminder(listId: listId, parentId: parent, createdBy: me, title: parsed.title.isEmpty ? trimmed : parsed.title,
@@ -331,6 +412,7 @@ final class AppModel {
         r.allDay = parsed.allDay
         r.repeat = parsed.repeat
         r.priority = parsed.priority
+        r.notes = parsed.notes
         r.flagged = flagged
         if r.dueAt != nil, !r.allDay, settings.defaultEarlyAlert > 0 { r.earlyAlertMinutes = settings.defaultEarlyAlert }
         mutate { $0.upsertReminder(r) }

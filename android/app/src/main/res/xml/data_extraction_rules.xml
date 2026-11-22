@@ -1,12 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- The session file is encrypted with a device-bound Keystore key; it can't be restored elsewhere. -->
+<!-- The session and Claude key files are encrypted with device-bound Keystore keys; they can't be restored elsewhere. -->
 <data-extraction-rules>
     <cloud-backup>
         <exclude domain="file" path="session.bin" />
+        <exclude domain="file" path="claude-key.bin" />
         <exclude domain="file" path="device-state.json" />
     </cloud-backup>
     <device-transfer>
         <exclude domain="file" path="session.bin" />
+        <exclude domain="file" path="claude-key.bin" />
         <exclude domain="file" path="device-state.json" />
     </device-transfer>
 </data-extraction-rules>

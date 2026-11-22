@@ -17,6 +17,8 @@ data class QuickAddResult(
     val repeat: RepeatRule? = null,
     val priority: Int = 0,
     val listId: String? = null,
+    /** Detail that doesn't fit a short title (only Claude fills this; the local parser never does). */
+    val notes: String? = null,
 )
 
 /**
@@ -92,7 +94,6 @@ object QuickAddParser {
             cut(m)
         }
 
-        var due: LocalDateTime? = null
         var relative: Instant? = null
         reIn.find(s)?.let { m ->
             val n = m.groupValues[1].toLong()
@@ -131,38 +132,36 @@ object QuickAddParser {
         }
         if (tonight && time == null) time = LocalTime.of(20, 0)
 
-        var allDay = false
-        var dueInstant: Instant? = relative
-        if (dueInstant == null) {
-            if (day != null || time != null) {
-                val d = day ?: if (time != null && !LocalDateTime.of(today, time).isAfter(nowLocal)) today.plusDays(1) else today
-                if (time != null) {
-                    due = LocalDateTime.of(d, time)
-                    dueInstant = ZonedDateTime.of(due, zone).toInstant()
-                } else {
-                    allDay = true
-                    due = d.atStartOfDay()
-                    dueInstant = ZonedDateTime.of(due, zone).toInstant()
-                }
-            } else if (repeatUnit != null) {
-                if (repeatUnit == "minute" || repeatUnit == "hour") {
-                    val step = repeatInterval.toLong() * (if (repeatUnit == "minute") 1 else 60)
-                    dueInstant = now.truncatedTo(ChronoUnit.MINUTES).plus(step, ChronoUnit.MINUTES)
-                } else {
-                    allDay = true
-                    dueInstant = ZonedDateTime.of(today.atStartOfDay(), zone).toInstant()
-                }
-            }
-        }
-
-        val repeat = repeatUnit?.let { unit ->
-            val anchorLocal = LocalDateTime.ofInstant(dueInstant!!, zone)
-            RepeatRule(unit = unit, interval = repeatInterval, anchor = Recurrence.formatLocal(anchorLocal), weekdays = repeatWeekdays)
-        }
+        val (dueInstant, allDay) = resolveDue(day, time, relative, repeatUnit, repeatInterval, now, zone)
+        val repeat = repeatUnit?.let { unit -> anchored(RepeatRule(unit = unit, interval = repeatInterval, anchor = "", weekdays = repeatWeekdays), dueInstant!!, zone) }
 
         val title = s.replace(Regex("\\s+"), " ").trim().ifEmpty { text.trim() }
         return QuickAddResult(title = title, dueAt = dueInstant, allDay = allDay, repeat = repeat, priority = priority, listId = listId)
     }
+
+    /**
+     * A day, a time of day or an absolute instant → due instant and all-day flag; a time with no day is the next
+     * such time, a repeat with no day starts from now. Shared by the local parser and Claude's parse ([QuickAddAI]).
+     */
+    internal fun resolveDue(day: LocalDate?, time: LocalTime?, relative: Instant?, repeatUnit: String?, repeatInterval: Int, now: Instant, zone: ZoneId): Pair<Instant?, Boolean> {
+        if (relative != null) return relative to false
+        val nowLocal = LocalDateTime.ofInstant(now, zone)
+        val today = nowLocal.toLocalDate()
+        if (day != null || time != null) {
+            val d = day ?: if (time != null && !LocalDateTime.of(today, time).isAfter(nowLocal)) today.plusDays(1) else today
+            return if (time != null) ZonedDateTime.of(LocalDateTime.of(d, time), zone).toInstant() to false
+            else ZonedDateTime.of(d.atStartOfDay(), zone).toInstant() to true
+        }
+        if (repeatUnit == null) return null to false
+        if (repeatUnit == "minute" || repeatUnit == "hour") {
+            val step = repeatInterval.toLong() * (if (repeatUnit == "minute") 1 else 60)
+            return now.truncatedTo(ChronoUnit.MINUTES).plus(step, ChronoUnit.MINUTES) to false
+        }
+        return ZonedDateTime.of(today.atStartOfDay(), zone).toInstant() to true
+    }
+
+    internal fun anchored(rule: RepeatRule, due: Instant, zone: ZoneId): RepeatRule =
+        rule.copy(anchor = Recurrence.formatLocal(LocalDateTime.ofInstant(due, zone)))
 
     private fun toTime(h0: Int, m: Int, ampm: String): LocalTime {
         var h = h0

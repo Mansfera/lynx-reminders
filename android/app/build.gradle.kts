@@ -76,6 +76,10 @@ dependencies {
     // Passkeys (SPEC §9); the Play Services provider covers Android 9–13.
     implementation(libs.androidx.credentials)
     implementation(libs.androidx.credentials.play.services)
+    // Claude (SPEC §7a): the official Anthropic SDK, called with the user's own API key.
+    implementation(libs.anthropic.java)
+    // On-device quick add (SPEC §7a): Gemini Nano through ML Kit's Prompt API, where AICore has it.
+    implementation(libs.genai.prompt)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.kotlinx.serialization.json)
     implementation(platform(libs.supabase.bom))

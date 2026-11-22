@@ -1,5 +1,6 @@
 package com.mansfera.lynxreminders.data
 
+import com.mansfera.lynxreminders.core.QuickAddAI
 import android.util.Log
 import com.mansfera.lynxreminders.core.DbStore
 import com.mansfera.lynxreminders.core.InstantS
@@ -87,6 +88,12 @@ data class Settings(
     @SerialName("show_completed") val showCompleted: Boolean = false,
     @SerialName("default_list_id") val defaultListId: String? = null,
     @SerialName("welcome_done") val welcomeDone: Boolean = false,
+    /** Quick add is read by AI (Claude or the on-device model) when one is ready. The field's label toggles it. */
+    @SerialName("ai_reads_quick_add") val aiReadsQuickAdd: Boolean = true,
+    /** Which AI reads quick add when both are ready: "claude" or "device" ([QuickAddAI.Reader]). */
+    @SerialName("quick_add_reader") val quickAddReader: String = "claude",
+    /** The Claude model that reads quick add (an API model id). */
+    @SerialName("claude_model") val claudeModel: String = QuickAddAI.DEFAULT_MODEL,
 )
 
 /** Local-only state that must never sync (SPEC §4): snoozes, cooldowns, scheduled ids. */

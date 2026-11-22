@@ -34,6 +34,18 @@ final class AppSettings {
     var onboarded: Bool {
         didSet { d.set(onboarded, forKey: "onboarded") }
     }
+    /// Quick add is read by AI (Claude or the on-device model) when one is ready. The field's label toggles it.
+    var aiReadsQuickAdd: Bool {
+        didSet { d.set(aiReadsQuickAdd, forKey: "aiReadsQuickAdd") }
+    }
+    /// Which AI reads quick add when both Claude and the on-device model are ready.
+    var quickAddReader: QuickAddAI.Reader {
+        didSet { d.set(quickAddReader.rawValue, forKey: "quickAddReader") }
+    }
+    /// The Claude model that reads quick add (an API model id).
+    var claudeModel: String {
+        didSet { d.set(claudeModel, forKey: "claudeModel") }
+    }
 
     init() {
         // Settings saved under the old bundle id (up to 0.1.1, macOS) carry over once.
@@ -50,6 +62,9 @@ final class AppSettings {
         showCompleted = d.object(forKey: "showCompleted") as? Bool ?? false
         showMenuBarExtra = d.object(forKey: "showMenuBarExtra") as? Bool ?? true
         onboarded = d.bool(forKey: "onboarded")
+        aiReadsQuickAdd = d.object(forKey: "aiReadsQuickAdd") as? Bool ?? d.object(forKey: "useClaude") as? Bool ?? true
+        quickAddReader = d.string(forKey: "quickAddReader").flatMap(QuickAddAI.Reader.init(rawValue:)) ?? .claude
+        claudeModel = d.string(forKey: "claudeModel") ?? QuickAddAI.defaultModel
     }
 
     var plannerSettings: PlannerSettings { PlannerSettings(allDayAlertMinutes: allDayAlertMinutes) }

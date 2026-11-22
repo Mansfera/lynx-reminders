@@ -110,7 +110,7 @@ class Repository(
 
     fun addQuick(q: QuickAddResult, listId: String?, parentId: String? = null): ReminderRow {
         val draft = newReminderDraft(q.listId ?: listId, parentId).copy(
-            title = q.title, dueAt = q.dueAt, allDay = q.allDay, repeat = q.repeat, priority = q.priority,
+            title = q.title, dueAt = q.dueAt, allDay = q.allDay, repeat = q.repeat, priority = q.priority, notes = q.notes,
         )
         saveReminder(draft)
         return draft

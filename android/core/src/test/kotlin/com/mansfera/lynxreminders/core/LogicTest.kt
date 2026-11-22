@@ -222,3 +222,70 @@ class PlannerAndEditsTest {
         assertEquals("me", plain.completedBy)
     }
 }
+
+class QuickAddAITest {
+    private val now = Instant.parse("2026-11-14T12:00:00Z") // Saturday 13:00 Bratislava
+    private val lists = listOf(ListRow("L-g", "me", "Groceries", createdAt = T0, updatedAt = T0), ListRow("L-w", "me", "Work Stuff", createdAt = T0, updatedAt = T0))
+    private fun r(f: QuickAddAI.Fields) = QuickAddAI.result(f, "typed", lists, now, BA)
+    private fun local(i: Instant?) = i!!.atZone(BA).toLocalDateTime().toString()
+
+    @Test fun userMessage() {
+        val m = QuickAddAI.userMessage("milk", lists, now, BA)
+        assertTrue(m, m.startsWith("Now: 2026-11-14 13:00, Saturday (Europe/Bratislava)"))
+        assertTrue(m.contains("Lists: Groceries, Work Stuff"))
+        assertTrue(m.endsWith("<line>milk</line>"))
+    }
+
+    @Test fun parsesJsonDateAndTime() {
+        val x = QuickAddAI.parse(
+            """{"title":" Call mom ","notes":null,"date":"2026-11-15","time":"09:00","repeat":null,"priority":7,"list":"work stuff"}""",
+            "typed", lists, now, BA,
+        )
+        assertEquals("Call mom", x.title); assertEquals("2026-11-15T09:00", local(x.dueAt)); assertFalse(x.allDay)
+        assertEquals(3, x.priority); assertEquals("L-w", x.listId)
+    }
+
+    @Test fun dateOnlyIsAllDay() = r(QuickAddAI.Fields("Pay rent", notes = "  ", date = "2026-12-01", list = "Home")).let {
+        assertTrue(it.allDay); assertEquals("2026-12-01T00:00", local(it.dueAt)); assertEquals(null, it.listId); assertEquals(null, it.notes)
+    }
+
+    @Test fun timeOnlyPassedIsTomorrowAndBadValuesIgnored() {
+        assertEquals("2026-11-15T09:00", local(r(QuickAddAI.Fields("x", time = "09:00")).dueAt))
+        val bad = r(QuickAddAI.Fields("", date = "soon", time = "25:00"))
+        assertEquals("typed", bad.title); assertEquals(null, bad.dueAt)
+    }
+
+    @Test fun repeatsAreAnchored() {
+        val daily = r(QuickAddAI.Fields("Pills", time = "20:00", repeat = QuickAddAI.Repeat("day")))
+        assertEquals("2026-11-14T20:00", daily.repeat!!.anchor)
+        val weekly = r(QuickAddAI.Fields("Gym", time = "07:00", repeat = QuickAddAI.Repeat("week", weekdays = listOf(3, 1, 1, 9))))
+        assertEquals(listOf(1, 3), weekly.repeat!!.weekdays); assertEquals("2026-11-16T07:00", local(weekly.dueAt))
+        val water = r(QuickAddAI.Fields("Water", repeat = QuickAddAI.Repeat("minute", 45)))
+        assertEquals("2026-11-14T13:45", local(water.dueAt))
+        assertEquals(null, r(QuickAddAI.Fields("x", repeat = QuickAddAI.Repeat("fortnight"))).repeat)
+    }
+}
+
+class QuickAddReaderTest {
+    private val now = Instant.parse("2026-11-14T12:00:00Z")
+    private val lists = listOf(ListRow("L-g", "me", "Groceries", createdAt = T0, updatedAt = T0))
+
+    @Test fun activeReader() {
+        val r = QuickAddAI.Reader.entries
+        assertEquals(QuickAddAI.Reader.CLAUDE, QuickAddAI.activeReader(r[0], claudeConnected = true, deviceAvailable = true))
+        assertEquals(QuickAddAI.Reader.DEVICE, QuickAddAI.activeReader(QuickAddAI.Reader.DEVICE, true, true))
+        assertEquals("device not ready", QuickAddAI.Reader.CLAUDE, QuickAddAI.activeReader(QuickAddAI.Reader.DEVICE, true, false))
+        assertEquals(QuickAddAI.Reader.DEVICE, QuickAddAI.activeReader(QuickAddAI.Reader.CLAUDE, false, true))
+        assertEquals(null, QuickAddAI.activeReader(QuickAddAI.Reader.CLAUDE, false, false))
+    }
+
+    @Test fun comingDays() = assertTrue(QuickAddAI.userMessage("x", lists, now, BA).contains("Coming days: Sunday 2026-11-15, Monday 2026-11-16,"))
+
+    @Test fun lenientReplyInFence() {
+        val q = QuickAddAI.parseLenient(
+            "Sure:\n```json\n{\"title\": \"Milk\", \"date\": \"2026-11-15\", \"time\": null, \"repeat\": null, \"priority\": null, \"list\": \"groceries\"}\n```",
+            "milk", lists, now, BA,
+        )
+        assertEquals("Milk", q.title); assertTrue(q.allDay); assertEquals("L-g", q.listId); assertEquals(0, q.priority)
+    }
+}

@@ -372,3 +372,97 @@ final class StoreTests: XCTestCase {
         XCTAssertEqual(again.snapshot.dirtyLists, [l.id])
     }
 }
+
+final class QuickAddAITests: XCTestCase {
+    let tz = TimeZone(identifier: "Europe/Bratislava")!
+    let now = LynxTime.parse("2026-11-14T12:00:00Z")!  // Saturday 13:00 local
+    let lists = [LynxList(ownerId: nil, name: "Groceries", sortOrder: 1), LynxList(ownerId: nil, name: "Work Stuff", sortOrder: 2)]
+
+    func r(_ f: QuickAddAI.Fields) -> QuickAddResult { QuickAddAI.result(from: f, original: "typed", lists: lists, now: now, timeZone: tz) }
+    func local(_ d: Date?) -> String? { d.map { WallTime($0, in: tz).string } }
+
+    func testUserMessageCarriesNowZoneAndLists() {
+        let m = QuickAddAI.userMessage("milk", lists: lists, now: now, timeZone: tz)
+        XCTAssertTrue(m.hasPrefix("Now: 2026-11-14 13:00, Saturday (Europe/Bratislava)"), m)
+        XCTAssertTrue(m.contains("Lists: Groceries, Work Stuff"))
+        XCTAssertTrue(m.hasSuffix("<line>milk</line>"))
+    }
+
+    func testDateAndTime() {
+        let x = r(.init(title: " Call mom ", date: "2026-11-15", time: "09:00", priority: 7, list: "work stuff"))
+        XCTAssertEqual(x.title, "Call mom")
+        XCTAssertEqual(local(x.dueAt), "2026-11-15T09:00")
+        XCTAssertFalse(x.allDay)
+        XCTAssertEqual(x.priority, 3, "clamped")
+        XCTAssertEqual(x.listId, lists[1].id, "list matched case-insensitively")
+    }
+
+    func testDateOnlyIsAllDayAndUnknownListIsKept() {
+        let x = r(.init(title: "Pay rent", notes: "  ", date: "2026-12-01", list: "Home"))
+        XCTAssertTrue(x.allDay)
+        XCTAssertEqual(local(x.dueAt), "2026-12-01T00:00")
+        XCTAssertNil(x.listId)
+        XCTAssertEqual(x.unknownListTag, "Home")
+        XCTAssertNil(x.notes, "blank notes dropped")
+    }
+
+    func testTimeOnlyAlreadyPassedMeansTomorrowAndBadValuesAreIgnored() {
+        XCTAssertEqual(local(r(.init(title: "x", time: "09:00")).dueAt), "2026-11-15T09:00")
+        let bad = r(.init(title: "", date: "soon", time: "25:00"))
+        XCTAssertEqual(bad.title, "typed", "empty title falls back to the typed line")
+        XCTAssertNil(bad.dueAt)
+    }
+
+    func testRepeatsAreAnchored() {
+        let daily = r(.init(title: "Pills", time: "20:00", repeat: .init(unit: "day")))
+        XCTAssertEqual(daily.repeat?.unit, .day)
+        XCTAssertEqual(daily.repeat?.anchor, "2026-11-14T20:00")
+        let weekly = r(.init(title: "Gym", time: "07:00", repeat: .init(unit: "week", weekdays: [3, 1, 1, 9])))
+        XCTAssertEqual(weekly.repeat?.weekdays, [1, 3])
+        XCTAssertEqual(local(weekly.dueAt), "2026-11-16T07:00", "next Monday")
+        let water = r(.init(title: "Water", repeat: .init(unit: "minute", interval: 45)))
+        XCTAssertEqual(local(water.dueAt), "2026-11-14T13:45")
+        XCTAssertNil(r(.init(title: "x", repeat: .init(unit: "fortnight"))).repeat, "unknown unit dropped")
+    }
+}
+
+final class QuickAddModelTests: XCTestCase {
+    func caps(structured: Bool, low: Bool, adaptive: Bool) -> [String: Any] {
+        ["structured_outputs": ["supported": structured],
+         "effort": ["supported": low, "low": ["supported": low]],
+         "thinking": ["supported": true, "types": ["adaptive": ["supported": adaptive], "enabled": ["supported": !adaptive]]]]
+    }
+
+    func testModelOptionsKeepOnlyModelsThatCanReadQuickAdd() {
+        let data: [[String: Any]] = [
+            ["id": "claude-opus-5-5", "display_name": "Claude Opus 5.5", "capabilities": caps(structured: true, low: true, adaptive: true)],
+            ["id": "claude-haiku-5-5", "display_name": "Claude Haiku 5.5", "capabilities": caps(structured: true, low: true, adaptive: true)],
+            ["id": "claude-haiku-4-5", "display_name": "Claude Haiku 4.5", "capabilities": caps(structured: true, low: false, adaptive: false)],
+            ["id": "claude-future-9", "capabilities": caps(structured: true, low: true, adaptive: true)],
+            ["id": "no-caps"],
+        ]
+        XCTAssertEqual(QuickAddAI.modelOptions(data).map(\.id), ["claude-opus-5-5", "claude-haiku-5-5", "claude-future-9"])
+        XCTAssertEqual(QuickAddAI.modelOptions(data).last?.name, "claude-future-9", "no display name: the id")
+    }
+
+    func testFallbacksOnlyForModelsThatTakeThem() {
+        XCTAssertFalse(QuickAddAI.usesServerFallbacks(QuickAddAI.defaultModel))
+        XCTAssertTrue(QuickAddAI.usesServerFallbacks("claude-opus-5-5"))
+        XCTAssertFalse(QuickAddAI.usesServerFallbacks("claude-future-9"))
+    }
+}
+
+final class QuickAddReaderTests: XCTestCase {
+    func testActiveReader() {
+        XCTAssertEqual(QuickAddAI.activeReader(preferred: .claude, claudeConnected: true, deviceAvailable: true), .claude)
+        XCTAssertEqual(QuickAddAI.activeReader(preferred: .device, claudeConnected: true, deviceAvailable: true), .device)
+        XCTAssertEqual(QuickAddAI.activeReader(preferred: .device, claudeConnected: true, deviceAvailable: false), .claude)
+        XCTAssertEqual(QuickAddAI.activeReader(preferred: .claude, claudeConnected: false, deviceAvailable: true), .device)
+        XCTAssertNil(QuickAddAI.activeReader(preferred: .claude, claudeConnected: false, deviceAvailable: false))
+    }
+
+    func testComingDays() {
+        let m = QuickAddAI.userMessage("x", lists: [], now: LynxTime.parse("2026-11-14T12:00:00Z")!, timeZone: TimeZone(identifier: "Europe/Bratislava")!)
+        XCTAssertTrue(m.contains("Coming days: Sunday 2026-11-15, Monday 2026-11-16,"), m)
+    }
+}
