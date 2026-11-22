@@ -18,8 +18,8 @@ settings:
     SWIFT_APPROACHABLE_CONCURRENCY: YES
     # Apple Intelligence's on-device model (iOS/macOS 26) is optional: weak-linked so the app still runs on 14/17+.
     OTHER_LDFLAGS: ["$(inherited)", "-weak_framework", "FoundationModels"]
-    MARKETING_VERSION: "0.2.0"
-    CURRENT_PROJECT_VERSION: "6"
+    MARKETING_VERSION: "0.3.0"
+    CURRENT_PROJECT_VERSION: "7"
     PRODUCT_BUNDLE_IDENTIFIER: xyz.etherlynx.reminders
     PRODUCT_NAME: Lynx Reminders
     DEVELOPMENT_TEAM: ""
