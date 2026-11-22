@@ -252,6 +252,10 @@ public final class LynxBackend: Sendable {
             .sorted { $0.createdAt < $1.createdAt }
     }
 
+    public func renamePasskey(_ id: UUID, to name: String) async throws {
+        try await client.auth.renamePasskey(id: id, friendlyName: name.trimmingCharacters(in: .whitespacesAndNewlines))
+    }
+
     public func removePasskey(_ id: UUID) async throws {
         try await client.auth.deletePasskey(id: id)
     }

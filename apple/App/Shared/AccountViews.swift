@@ -269,6 +269,8 @@ struct AccountSheet: View {
     @State private var passkeys: [PasskeyInfo] = []
     @State private var passkeyBusy = false
     @State private var removingPasskey: PasskeyInfo?
+    @State private var renamingPasskey: PasskeyInfo?
+    @State private var passkeyName = ""
 
     var body: some View {
         Group {
@@ -306,6 +308,15 @@ struct AccountSheet: View {
                 }
                 .onAppear { name = model.profile?.name ?? "" }
                 .task { await loadPasskeys() }
+                .alert("Rename passkey", isPresented: Binding(get: { renamingPasskey != nil }, set: { if !$0 { renamingPasskey = nil } }),
+                       presenting: renamingPasskey) { p in
+                    TextField("Passkey name", text: $passkeyName)
+                    Button("Cancel", role: .cancel) {}
+                    Button("Save") { Task { await renamePasskey(p) } }
+                        .disabled(passkeyName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                } message: { _ in
+                    Text("A name that tells you where it's saved, like the device or password manager.")
+                }
                 .confirmationDialog("Remove this passkey?", isPresented: Binding(get: { removingPasskey != nil }, set: { if !$0 { removingPasskey = nil } }),
                                     titleVisibility: .visible, presenting: removingPasskey) { p in
                     Button("Remove passkey", role: .destructive) { Task { await removePasskey(p) } }
@@ -360,6 +371,7 @@ struct AccountSheet: View {
                     FormRow(p.name ?? "Passkey", symbol: "person.badge.key") {
                         Text("Added \(p.createdAt.formatted(date: .abbreviated, time: .omitted))")
                             .font(Brand.mono(11, .regular)).foregroundStyle(pal.muted)
+                        LinkButton(title: "Rename") { passkeyName = p.name ?? ""; renamingPasskey = p }
                         LinkButton(title: "Remove", role: .destructive) { removingPasskey = p }
                     }
                     Hairline()
@@ -396,6 +408,18 @@ struct AccountSheet: View {
             } catch {
                 self.error = AuthView.describe(error)
             }
+        }
+    }
+
+    private func renamePasskey(_ p: PasskeyInfo) async {
+        guard let backend = model.backend else { return }
+        let name = String(passkeyName.trimmingCharacters(in: .whitespacesAndNewlines).prefix(60))
+        guard !name.isEmpty, name != p.name else { return }
+        do {
+            try await backend.renamePasskey(p.id, to: name)
+            if let i = passkeys.firstIndex(where: { $0.id == p.id }) { passkeys[i].name = name }
+        } catch {
+            self.error = AuthView.describe(error)
         }
     }
 

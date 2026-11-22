@@ -206,6 +206,7 @@ fun AccountScreen(
     var passkeys by remember { mutableStateOf<List<PasskeyInfo>>(emptyList()) }
     var passkeyBusy by remember { mutableStateOf(false) }
     var removingPasskey by remember { mutableStateOf<PasskeyInfo?>(null) }
+    var renamingPasskey by remember { mutableStateOf<PasskeyInfo?>(null) }
     fun loadPasskeys() = vm.run { passkeys = vm.g.sync.passkeys.list() }
     LaunchedEffect(account.userId, account.needsSignIn) { if (account.userId != null && !account.needsSignIn) loadPasskeys() }
     // Re-read permission state when coming back from system settings
@@ -320,7 +321,9 @@ fun AccountScreen(
                 SectionLabel("Passkeys")
                 Panel(padding = 0.dp) {
                     for (p in passkeys) {
-                        SettingRow(p.name ?: "Passkey", "Added " + Fmt.dayWord(p.createdAt.atZone(Fmt.zone).toLocalDate(), java.time.LocalDate.now()).let { if (it == "Today" || it == "Yesterday") it.lowercase() else it }) {
+                        val added = "Added " + Fmt.dayWord(p.createdAt.atZone(Fmt.zone).toLocalDate(), java.time.LocalDate.now()).let { if (it == "Today" || it == "Yesterday") it.lowercase() else it }
+                        SettingRow(p.name ?: "Passkey", added, onClick = { renamingPasskey = p }) {
+                            TextAction("Rename") { renamingPasskey = p }
                             TextAction("Remove", color = c.signal) { removingPasskey = p }
                         }
                         Hairline()
@@ -382,6 +385,23 @@ fun AccountScreen(
             ),
         )
     }
+    renamingPasskey?.let { p ->
+        var name by remember(p.id) { mutableStateOf(p.name.orEmpty()) }
+        val save = {
+            if (name.isNotBlank()) {
+                renamingPasskey = null
+                vm.run(onError = { error = it }, onDone = { loadPasskeys() }) { vm.g.sync.passkeys.rename(p.id, name) }
+            }
+        }
+        LynxDialog(
+            title = "Rename passkey",
+            text = "A name that tells you where it's saved, like the phone or password manager.",
+            onDismiss = { renamingPasskey = null },
+            actions = listOf("Cancel" to { renamingPasskey = null }, "Save" to save),
+        ) {
+            LynxField(name, { name = it.take(60) }, "Passkey name", onDone = save)
+        }
+    }
     if (deleteDialog) {
         LynxDialog(
             title = "Delete account?",
@@ -409,13 +429,21 @@ fun openAppSettings(ctx: android.content.Context) {
 
 /** Alert dialog on Lynx tokens: actions stacked right-aligned, the last one is the primary. */
 @Composable
-fun LynxDialog(title: String, text: String, onDismiss: () -> Unit, actions: List<Pair<String, () -> Unit>>) {
+fun LynxDialog(
+    title: String, text: String, onDismiss: () -> Unit, actions: List<Pair<String, () -> Unit>>,
+    content: (@Composable () -> Unit)? = null,
+) {
     val c = lynx
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = c.panel,
         title = { Text(title, style = LynxType.title, color = c.fg) },
-        text = { Text(text, style = LynxType.body, color = c.ink2) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(Sp.s10)) {
+                Text(text, style = LynxType.body, color = c.ink2)
+                content?.invoke()
+            }
+        },
         confirmButton = {
             Column(horizontalAlignment = Alignment.End) {
                 actions.forEachIndexed { i, (label, f) ->

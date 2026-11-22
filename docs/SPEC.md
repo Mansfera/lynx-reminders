@@ -356,7 +356,7 @@ No emoji anywhere in UI. No gradients other than the stage. No shadows except sy
 * Supabase email + password, and email one-time code ("Email me a code") as a passwordless
   option. Sign in with Apple / Google come later (need a paid Apple account / OAuth clients).
 * **Passkeys** (WebAuthn, Supabase Auth's own passkey support; no server code of ours). A passkey
-  is added to an existing account from the Account screen ("Add a passkey", list with "Remove"),
+  is added to an existing account from the Account screen ("Add a passkey", list with "Rename" and "Remove"),
   then used from the Sign in screen ("Use a passkey", secondary to the Ink pill; no email needed,
   the passkey names the account). Creating an account still starts with an email.
   * Relying party: `reminders.etherlynx.xyz` (`[auth.webauthn]` in `backend/supabase/config.toml`;
