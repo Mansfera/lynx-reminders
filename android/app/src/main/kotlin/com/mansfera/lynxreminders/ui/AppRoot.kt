@@ -130,7 +130,14 @@ fun AppRoot(vm: AppVM) {
                 val wide = maxWidth >= 840.dp
                 val listRoute = vm.stack.lastOrNull { it is Route.Smart || it is Route.ListR }
                 val editor = top as? Route.Editor
-                val home = @Composable { showQuickAdd: Boolean, selected: Route? ->
+                var pulling by remember { mutableStateOf(false) }
+                val pull = @Composable { content: @Composable () -> Unit ->
+                    SyncPull(account.signedIn && !account.needsSignIn, pulling, onRefresh = {
+                        pulling = true
+                        vm.run(onError = { pulling = false }, onDone = { pulling = false }) { vm.g.sync.syncNow(forceManifest = true) }
+                    }, content)
+                }
+                val home = @Composable { showQuickAdd: Boolean, selected: Route? -> pull {
                     HomeScreen(
                         db, now, account.signedIn, selected, banner,
                         onOpen = { r ->
@@ -144,8 +151,8 @@ fun AppRoot(vm: AppVM) {
                         },
                         showQuickAdd = showQuickAdd,
                     )
-                }
-                val list = @Composable { r: Route, back: (() -> Unit)? ->
+                } }
+                val list = @Composable { r: Route, back: (() -> Unit)? -> pull {
                     ListScreen(
                         r, db, now, settings.showCompleted, account.signedIn, handlers, onBack = back,
                         onEditList = { vm.push(Route.ListEdit(it)) },
@@ -153,7 +160,7 @@ fun AppRoot(vm: AppVM) {
                         onQuickAdd = { quickAdd(it, r) },
                         onNewReminder = { vm.push(Route.Editor(null, listId = (r as? Route.ListR)?.id)) },
                     )
-                }
+                } }
                 val editorView = @Composable { e: Route.Editor, inPane: Boolean ->
                     EditorScreen(e, db, now, vm.repo, account.signedIn, handlers, onClose = { vm.pop() }, onShare = { vm.push(Route.Share(reminderId = it)) }, inPane = inPane)
                 }

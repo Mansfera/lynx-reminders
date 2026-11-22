@@ -66,6 +66,7 @@ struct ReminderListView: View {
             }
         }
         #if os(iOS)
+        .syncOnPull()
         .navigationTitle(model.title(for: item))
         .navigationBarTitleDisplayMode(.inline)
         #endif

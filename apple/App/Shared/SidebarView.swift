@@ -32,6 +32,7 @@ struct SidebarView: View {
         }
         .background(pal.bg)
         #if os(iOS)
+        .syncOnPull()
         .navigationTitle("Lynx")
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {

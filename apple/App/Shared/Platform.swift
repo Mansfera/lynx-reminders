@@ -34,6 +34,24 @@ enum Platform {
     }
 }
 
+#if os(iOS)
+/// Pull down to sync (signed in only). `.refreshable` reaches the ScrollView through the environment.
+private struct SyncOnPull: ViewModifier {
+    @Environment(AppModel.self) private var model
+    func body(content: Content) -> some View {
+        if model.user != nil {
+            content.refreshable { await model.runSync(manifest: true) }
+        } else {
+            content
+        }
+    }
+}
+
+extension View {
+    func syncOnPull() -> some View { modifier(SyncOnPull()) }
+}
+#endif
+
 extension View {
     /// Form rows read the same on both platforms; iOS gets slightly larger tap targets.
     @ViewBuilder func platformRowPadding() -> some View {

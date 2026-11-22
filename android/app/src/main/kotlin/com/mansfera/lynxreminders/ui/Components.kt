@@ -12,6 +12,8 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -55,6 +57,9 @@ import androidx.compose.material.icons.rounded.ShoppingCart
 import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material.icons.rounded.Work
 import androidx.compose.material3.Icon
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
@@ -201,6 +206,27 @@ fun <T> CapsuleTabs(options: List<Pair<T, String>>, selected: T, modifier: Modif
             }
         }
     }
+}
+
+/** Pull down to sync. Off (plain content) when there's no account to sync with. */
+@Composable
+fun SyncPull(enabled: Boolean, refreshing: Boolean, onRefresh: () -> Unit, content: @Composable () -> Unit) {
+    if (!enabled) { content(); return }
+    val c = lynx
+    val state = rememberPullToRefreshState()
+    PullToRefreshBox(
+        isRefreshing = refreshing,
+        onRefresh = onRefresh,
+        state = state,
+        modifier = Modifier.fillMaxSize(),
+        indicator = {
+            PullToRefreshDefaults.Indicator(
+                state = state, isRefreshing = refreshing,
+                containerColor = c.panel, color = c.fg,
+                modifier = Modifier.align(Alignment.TopCenter).statusBarsPadding(),
+            )
+        },
+    ) { content() }
 }
 
 // ---------- inputs ----------
