@@ -134,7 +134,18 @@ struct ReminderDetailView: View {
                 }
                 Hairline()
                 FormRow("Priority") {
-                    CapsuleTabs(items: [(0, "None"), (1, "Low"), (2, "Medium"), (3, "High")], selection: bind(\.priority))
+                    let levels = [(0, "None"), (1, "Low"), (2, "Medium"), (3, "High")]
+                    Menu {
+                        Picker("Priority", selection: bind(\.priority)) {
+                            ForEach(levels, id: \.0) { Text($0.1).tag($0.0) }
+                        }
+                        .pickerStyle(.inline).labelsHidden()
+                    } label: {
+                        Text(levels.first { $0.0 == r.priority }?.1 ?? "None")
+                            .font(Brand.text(13))
+                            .foregroundStyle(r.priority == 0 ? pal.muted : pal.fg)
+                    }
+                    .menuStyle(.button).buttonStyle(.plain).fixedSize()
                 }
                 Hairline()
                 FormRow("Flag") {
