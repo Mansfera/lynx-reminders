@@ -70,6 +70,14 @@ public struct LynxList: Codable, Hashable, Sendable, Identifiable {
         case deletedAt = "deleted_at"
     }
 
+    /// The name of the list a device makes when it has none.
+    public static let defaultName = "Reminders"
+
+    /// Still looks exactly like the automatic default list (name, color and icon unchanged).
+    public var isUntouchedDefault: Bool {
+        name == Self.defaultName && color == ListColor.ink.rawValue && icon == ListIcon.list.rawValue && !isDeleted
+    }
+
     public init(id: UUID = UUID(), ownerId: UUID?, name: String, color: ListColor = .ink, icon: ListIcon = .list,
                 sortOrder: Double, now: Date = LynxTime.now()) {
         self.id = id

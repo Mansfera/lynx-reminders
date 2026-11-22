@@ -137,8 +137,8 @@ final class NotificationService: NSObject {
         case Self.snooze60:
             model.snooze(reminder, minutes: 60)
         case UNNotificationDefaultActionIdentifier:
-            model.selectedReminder = reminder
             if let r = model.db.reminders[reminder], model.db.list(r.listId) != nil { model.selection = .list(r.listId) }
+            model.showReminder(reminder)
             Platform.bringToFront()
         default:
             break

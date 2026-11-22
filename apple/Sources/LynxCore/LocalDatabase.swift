@@ -264,6 +264,13 @@ public struct LocalDatabase: Codable, Sendable, Equatable {
     public mutating func claim(for user: UUID, email: String?, now: Date = LynxTime.now()) {
         accountId = user
         accountEmail = email
+        // A fresh device's automatic "Reminders" list, still empty, stays behind: the account already
+        // has its lists, and uploading it would add another "Reminders" per device (SPEC §1).
+        let used = Set(reminders.values.map(\.listId))
+        for (id, l) in lists where l.version == nil && l.ownerId == nil && !used.contains(id) && l.isUntouchedDefault {
+            lists[id] = nil
+            dirtyLists.remove(id)
+        }
         for (id, var l) in lists where l.ownerId == nil || l.version == nil {
             if l.ownerId == nil { l.ownerId = user }
             lists[id] = l

@@ -8,7 +8,7 @@ DIR="$(cd "$(dirname "$0")/.." && pwd)"
 OUT="$1"; LOOK="$2"; SCREEN="$3"
 DATA="${TMPDIR:-/tmp}/lynx-shot-$$"
 mkdir -p "$DATA"
-defaults delete com.mansfera.lynxreminders.demo >/dev/null 2>&1 || true
+defaults delete xyz.etherlynx.reminders.demo >/dev/null 2>&1 || true
 pkill -f "Lynx Reminders.app/Contents/MacOS" >/dev/null 2>&1 || true
 sleep 0.5
 open -n "$DIR/build/Lynx Reminders.app" --env LYNX_DATA_DIR="$DATA" --env LYNX_DEMO=1 \

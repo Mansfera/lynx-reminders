@@ -8,7 +8,7 @@ final class AppSettings {
     static let shared = AppSettings()
     /// Demo runs (LYNX_DATA_DIR set, used for screenshots) keep their settings apart from the real ones.
     private let d: UserDefaults = ProcessInfo.processInfo.environment["LYNX_DATA_DIR"] != nil
-        ? UserDefaults(suiteName: "com.mansfera.lynxreminders.demo") ?? .standard : .standard
+        ? UserDefaults(suiteName: "xyz.etherlynx.reminders.demo") ?? .standard : .standard
 
     var defaultListId: UUID? {
         didSet { d.set(defaultListId?.uuidString, forKey: "defaultList") }
@@ -36,6 +36,13 @@ final class AppSettings {
     }
 
     init() {
+        // Settings saved under the old bundle id (up to 0.1.1, macOS) carry over once.
+        if d == .standard, !d.bool(forKey: "migratedLegacySettings") {
+            for (k, v) in d.persistentDomain(forName: LynxPaths.legacyAppId) ?? [:] where d.object(forKey: k) == nil {
+                d.set(v, forKey: k)
+            }
+            d.set(true, forKey: "migratedLegacySettings")
+        }
         defaultListId = d.string(forKey: "defaultList").flatMap(UUID.init(uuidString:))
         allDayAlertMinutes = d.object(forKey: "allDayAlertMinutes") as? Int ?? 9 * 60
         defaultEarlyAlert = d.object(forKey: "defaultEarlyAlert") as? Int ?? 0

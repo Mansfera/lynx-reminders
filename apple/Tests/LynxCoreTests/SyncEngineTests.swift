@@ -390,6 +390,19 @@ final class SyncEngineTests: XCTestCase {
         XCTAssertEqual(db.dirtyReminders, [r.id])
     }
 
+    func testClaimDropsTheUntouchedAutomaticList() {
+        var db = LocalDatabase()
+        let auto = LynxList(ownerId: nil, name: LynxList.defaultName, sortOrder: 1)
+        let used = LynxList(ownerId: nil, name: LynxList.defaultName, sortOrder: 2)
+        let renamed = LynxList(ownerId: nil, name: "Groceries", sortOrder: 3)
+        for l in [auto, used, renamed] { db.lists[l.id] = l }
+        let r = Reminder(listId: used.id, createdBy: nil, title: "x", sortOrder: 1)
+        db.reminders[r.id] = r
+        db.claim(for: me, email: "a@b.c")
+        XCTAssertNil(db.lists[auto.id])
+        XCTAssertEqual(db.dirtyLists, [used.id, renamed.id])
+    }
+
     func testDetachAsLocalCopyGivesFreshIds() {
         var db = LocalDatabase()
         db.accountId = me

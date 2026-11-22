@@ -35,6 +35,9 @@ final class AppModel {
     // UI state
     var selection: SidebarItem? = .smart(.today)
     var selectedReminder: UUID?
+    /// The column an iPhone (collapsed split view) shows. Selection alone doesn't navigate there, so
+    /// taps go through `show(_:)` / `showReminder(_:)`, which also set this.
+    var compactColumn: NavigationSplitViewColumn = .sidebar
     var searchText = "" {
         didSet {
             if !searchText.isEmpty { selection = .search } else if selection == .search { selection = .smart(.today) }
@@ -177,6 +180,8 @@ final class AppModel {
     private func syncFinished(_ report: SyncReport) {
         syncError = report.error
         db = store.snapshot
+        // Sign-in leaves the automatic list behind; only an account with no lists at all gets one back.
+        if report.error == nil { ensureDefaultList() }
         if report.changed > 0 {
             rebuildAlerts()
             triggers.refresh()
@@ -251,9 +256,21 @@ final class AppModel {
         Task { await engine?.schedule(after: 1) }
     }
 
+    /// Opens a sidebar item: selects it, and on iPhone pushes its list.
+    func show(_ item: SidebarItem) {
+        selection = item
+        compactColumn = .content
+    }
+
+    /// Opens a reminder: selects it, and on iPhone pushes its details.
+    func showReminder(_ id: UUID) {
+        selectedReminder = id
+        compactColumn = .detail
+    }
+
     func ensureDefaultList() {
         if db.visibleLists.isEmpty {
-            let l = LynxList(ownerId: me, name: "Reminders", color: .ink, icon: .list, sortOrder: 1)
+            let l = LynxList(ownerId: me, name: LynxList.defaultName, color: .ink, icon: .list, sortOrder: 1)
             store.write { $0.upsertList(l) }
             db = store.snapshot
         }
@@ -419,6 +436,12 @@ final class AppModel {
         try await backend?.leaveList(id)
         await runSync(manifest: true)
         if selection == .list(id) { selection = .smart(.today) }
+    }
+
+    /// The share sheets' check while typing: what sharing would do, without sharing.
+    func sharePreview(email: String, list: UUID? = nil, reminder: UUID? = nil) async throws -> ShareResult {
+        guard let backend else { throw RemoteError.network("No server configured") }
+        return try await backend.sharePreview(email: email, list: list, reminder: reminder)
     }
 
     func shareReminder(_ id: UUID, email: String) async throws -> ShareResult {

@@ -16,11 +16,12 @@ val supabaseProps = Properties().apply {
 }
 
 android {
+    // The Kotlin package / R / BuildConfig keep the old name; only the installed app id changed (0.1.2).
     namespace = "com.mansfera.lynxreminders"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.mansfera.lynxreminders"
+        applicationId = "xyz.etherlynx.reminders"
         minSdk = 29
         targetSdk = 36
         versionCode = 4

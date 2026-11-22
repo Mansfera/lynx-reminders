@@ -1,7 +1,7 @@
 # XcodeGen spec: `xcodegen generate` (in apple/) writes LynxReminders.xcodeproj.
 name: LynxReminders
 options:
-  bundleIdPrefix: com.mansfera
+  bundleIdPrefix: xyz.etherlynx
   deploymentTarget:
     macOS: "14.0"
     iOS: "17.0"
@@ -18,7 +18,7 @@ settings:
     SWIFT_APPROACHABLE_CONCURRENCY: YES
     MARKETING_VERSION: "0.1.2"
     CURRENT_PROJECT_VERSION: "4"
-    PRODUCT_BUNDLE_IDENTIFIER: com.mansfera.lynxreminders
+    PRODUCT_BUNDLE_IDENTIFIER: xyz.etherlynx.reminders
     PRODUCT_NAME: Lynx Reminders
     DEVELOPMENT_TEAM: ""
     ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
@@ -65,7 +65,7 @@ targets:
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
         CFBundleURLTypes:
-          - CFBundleURLName: com.mansfera.lynxreminders
+          - CFBundleURLName: xyz.etherlynx.reminders
             CFBundleURLSchemes: [lynxreminders]
     entitlements:
       path: App/macOS/LynxReminders.entitlements
@@ -101,7 +101,7 @@ targets:
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
         CFBundleURLTypes:
-          - CFBundleURLName: com.mansfera.lynxreminders
+          - CFBundleURLName: xyz.etherlynx.reminders
             CFBundleURLSchemes: [lynxreminders]
     settings:
       base:

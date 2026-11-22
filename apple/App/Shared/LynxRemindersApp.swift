@@ -52,6 +52,6 @@ extension AppModel {
         guard url.scheme == "lynxreminders", url.host == "reminder", let id = UUID(uuidString: url.lastPathComponent),
               let r = db.reminders[id] else { return }
         if db.list(r.listId) != nil { selection = .list(r.listId) }
-        selectedReminder = id
+        showReminder(id)
     }
 }

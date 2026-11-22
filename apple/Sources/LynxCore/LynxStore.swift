@@ -1,14 +1,22 @@
 import Foundation
 
-/// The app data folder: `~/Library/Application Support/com.mansfera.lynxreminders/` (SPEC header).
+/// The app data folder: `~/Library/Application Support/xyz.etherlynx.reminders/` (SPEC header).
 public enum LynxPaths {
-    public static let appId = "com.mansfera.lynxreminders"
+    public static let appId = "xyz.etherlynx.reminders"
+    /// The bundle id up to 0.1.1. Its data folder and settings move over on the first launch.
+    public static let legacyAppId = "com.mansfera.lynxreminders"
 
-    public static var dataFolder: URL {
-        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+    public static let dataFolder: URL = {
+        let fm = FileManager.default
+        let base = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Library/Application Support")
-        return base.appendingPathComponent(appId, isDirectory: true)
-    }
+        let folder = base.appendingPathComponent(appId, isDirectory: true)
+        let legacy = base.appendingPathComponent(legacyAppId, isDirectory: true)
+        if !fm.fileExists(atPath: folder.path), fm.fileExists(atPath: legacy.path) {
+            try? fm.moveItem(at: legacy, to: folder)
+        }
+        return folder
+    }()
 }
 
 /// A Codable value persisted as JSON: atomic writes (temp file + rename), debounced.

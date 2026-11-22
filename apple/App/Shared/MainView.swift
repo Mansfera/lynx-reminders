@@ -34,7 +34,7 @@ struct MainView: View {
 
     var body: some View {
         @Bindable var model = model
-        NavigationSplitView(columnVisibility: $columns) {
+        NavigationSplitView(columnVisibility: $columns, preferredCompactColumn: $model.compactColumn) {
             SidebarView()
                 .navigationSplitViewColumnWidth(min: 236, ideal: 260, max: 320)
         } content: {

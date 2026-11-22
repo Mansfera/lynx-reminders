@@ -85,6 +85,14 @@ data class ListRow(
     val version: Long = 0,
 ) {
     val isDeleted get() = deletedAt != null
+
+    /** Still looks exactly like the automatic default list (name, color and icon unchanged). */
+    val isUntouchedDefault get() = name == DEFAULT_NAME && color == "ink" && icon == "list" && !isDeleted
+
+    companion object {
+        /** The name of the list a device makes when it has none. */
+        const val DEFAULT_NAME = "Reminders"
+    }
 }
 
 @Serializable

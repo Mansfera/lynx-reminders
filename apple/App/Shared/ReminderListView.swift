@@ -162,21 +162,31 @@ struct ListHeader: View {
     let item: SidebarItem
     @Environment(AppModel.self) private var model
     @Environment(\.palette) private var pal
+    #if os(iOS)
+    @Environment(\.horizontalSizeClass) private var sizeClass
+    /// iPhone width: search gets its own row so the title isn't cut off.
+    private var narrow: Bool { sizeClass == .compact }
+    #else
+    private let narrow = false
+    #endif
 
     var body: some View {
-        HStack(alignment: .center, spacing: Brand.Space.m) {
-            if case .list(let id) = item, let l = model.db.list(id) {
-                ListBadge(list: l, size: 30)
+        VStack(alignment: .leading, spacing: Brand.Space.m) {
+            HStack(alignment: .center, spacing: Brand.Space.m) {
+                if case .list(let id) = item, let l = model.db.list(id) {
+                    ListBadge(list: l, size: 30)
+                }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(model.title(for: item)).font(Brand.display(24, .semibold)).tracking(-0.5).lineLimit(1)
+                    if let sub = subtitle { Text(sub).font(Brand.caption).foregroundStyle(pal.muted) }
+                }
+                Spacer(minLength: Brand.Space.s)
+                if !narrow { SearchField() }
+                if case .list(let id) = item {
+                    listMenu(id)
+                }
             }
-            VStack(alignment: .leading, spacing: 2) {
-                Text(model.title(for: item)).font(Brand.display(24, .semibold)).tracking(-0.5).lineLimit(1)
-                if let sub = subtitle { Text(sub).font(Brand.caption).foregroundStyle(pal.muted) }
-            }
-            Spacer(minLength: Brand.Space.s)
-            SearchField()
-            if case .list(let id) = item {
-                listMenu(id)
-            }
+            if narrow { SearchField(fullWidth: true) }
         }
     }
 
@@ -225,6 +235,7 @@ struct ListHeader: View {
 
 /// Search (⌘F focuses it): titles and notes across everything.
 struct SearchField: View {
+    var fullWidth = false
     @Environment(AppModel.self) private var model
     @Environment(\.palette) private var pal
     @FocusState private var focused: Bool
@@ -247,8 +258,10 @@ struct SearchField: View {
             }
         }
         .padding(.horizontal, Brand.Space.s).padding(.vertical, 7)
-        .frame(width: focused || !model.searchText.isEmpty ? 200 : 130)
+        .frame(width: fullWidth ? nil : focused || !model.searchText.isEmpty ? 200 : 130)
+        .frame(maxWidth: fullWidth ? .infinity : nil)
         .background(pal.sunk, in: Capsule())
+        .focusOnTap($focused, Capsule())
         .animation(.easeOut(duration: 0.15), value: focused)
         .onChange(of: model.focusSearch) { _, _ in focused = true }
     }
@@ -267,6 +280,8 @@ extension View {
 /// Quick add: one line with light natural-language parsing (SPEC §7).
 struct QuickAddField: View {
     let item: SidebarItem
+    /// The iPhone home screen's field: new reminders go to the default list (or a #list tag), not the last opened one.
+    var intoDefaultList = false
     @Environment(AppModel.self) private var model
     @Environment(\.palette) private var pal
     @State private var text = ""
@@ -285,6 +300,7 @@ struct QuickAddField: View {
             }
             .padding(.horizontal, Brand.Space.l).padding(.vertical, Brand.Space.m)
             .background(pal.sunk, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .focusOnTap($focused, RoundedRectangle(cornerRadius: 14, style: .continuous))
             if let p = preview, hint(p) != nil {
                 Text(hint(p)!).font(Brand.mono(10.5)).foregroundStyle(pal.muted).padding(.leading, 46)
             }
@@ -303,7 +319,7 @@ struct QuickAddField: View {
     }
 
     private func add() {
-        var list: UUID? = nil
+        var list: UUID? = intoDefaultList ? model.defaultList?.id : nil
         if case .list(let id) = item { list = id }
         var input = text
         // In Today, a reminder without a date is for today.
@@ -370,7 +386,7 @@ struct ReminderRow: View {
         .padding(.vertical, compact ? Brand.Space.s : Brand.Space.m)
         .background(selected ? pal.sunk : .clear)
         .contentShape(Rectangle())
-        .onTapGesture { model.selectedReminder = r.id }
+        .onTapGesture { model.showReminder(r.id) }
         .contextMenu { RowMenu(reminder: r) }
         .accessibilityElement(children: .combine)
     }

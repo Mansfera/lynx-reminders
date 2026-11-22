@@ -90,11 +90,8 @@ struct ShareListSheet: View {
         SheetScaffold(title: "Share “\(list?.name ?? "List")”", subtitle: "Everyone in the list can see, edit and complete its reminders.",
                       doneTitle: "Close", onCancel: { dismiss() }, onDone: { dismiss() }) {
             if owner {
-                HStack(spacing: Brand.Space.s) {
-                    SunkField(placeholder: "name@example.com", text: $email).onSubmit(share)
-                    InkPill(title: "Invite", symbol: "arrow.right", busy: busy, action: share)
-                        .disabled(!email.contains("@") || busy)
-                }
+                ShareEmailRow(email: $email, buttonTitle: "Invite", busy: busy,
+                              check: { try await model.sharePreview(email: $0, list: listId) }, share: share)
                 if let message { Text(message).font(Brand.caption).foregroundStyle(error ? pal.signal : pal.muted) }
             } else {
                 Text("Only the owner can invite people.").font(Brand.caption).foregroundStyle(pal.muted)
@@ -175,10 +172,8 @@ struct ShareReminderSheet: View {
         let invites = model.db.invites.filter { $0.reminderId == reminderId }
         SheetScaffold(title: "Share “\(r?.title ?? "Reminder")”", subtitle: "They see this reminder in Shared with me; the list stays yours.",
                       doneTitle: "Close", onCancel: { dismiss() }, onDone: { dismiss() }) {
-            HStack(spacing: Brand.Space.s) {
-                SunkField(placeholder: "name@example.com", text: $email).onSubmit(share)
-                InkPill(title: "Share", symbol: "arrow.right", busy: busy, action: share).disabled(!email.contains("@") || busy)
-            }
+            ShareEmailRow(email: $email, buttonTitle: "Share", busy: busy,
+                          check: { try await model.sharePreview(email: $0, reminder: reminderId) }, share: share)
             if let message { Text(message).font(Brand.caption).foregroundStyle(error ? pal.signal : pal.muted) }
             Caption("Shared with")
             Panel(padding: 0) {
@@ -229,6 +224,64 @@ struct ShareReminderSheet: View {
                 message = error.localizedDescription
             }
             busy = false
+        }
+    }
+}
+
+/// The share sheets' email field and Share button. Two seconds after typing stops it asks the server
+/// what sharing would do (`share_preview`, SPEC §3) and says so under the field; Share turns on once
+/// the answer is "added" or "invited" (or the check couldn't run, e.g. offline).
+struct ShareEmailRow: View {
+    @Binding var email: String
+    let buttonTitle: String
+    let busy: Bool
+    let check: (String) async throws -> ShareResult
+    let share: () -> Void
+    @Environment(\.palette) private var pal
+    @State private var result: (email: String, status: String)?
+    @State private var checking = false
+
+    private var address: String { email.trimmingCharacters(in: .whitespacesAndNewlines) }
+    private var looksLikeEmail: Bool { address.range(of: #"^[^@\s]+@[^@\s]+\.[^@\s]+$"#, options: .regularExpression) != nil }
+    /// The answer for what's in the field now (nil while typing or checking).
+    private var status: String? { result?.email == address ? result?.status : nil }
+    private var canShare: Bool {
+        guard !busy, looksLikeEmail, let status else { return false }
+        return status == "added" || status == "invited" || status == "unknown"
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Brand.Space.xs) {
+            HStack(spacing: Brand.Space.s) {
+                SunkField(placeholder: "name@example.com", text: $email, email: true).onSubmit { if canShare { share() } }
+                InkPill(title: buttonTitle, symbol: "arrow.right", busy: busy, action: share).disabled(!canShare)
+            }
+            if let hint {
+                Text(hint.text).font(Brand.caption).foregroundStyle(hint.warn ? pal.signal : pal.muted)
+            }
+        }
+        .task(id: address) {
+            checking = false
+            guard !address.isEmpty else { return }
+            // Debounce: a new keystroke cancels this task (and its sleep) and starts another.
+            do { try await Task.sleep(for: .seconds(2)) } catch { return }
+            guard looksLikeEmail else { result = (address, "invalid"); return }
+            checking = true
+            let status = (try? await check(address))?.status ?? "unknown"
+            guard !Task.isCancelled else { return }
+            result = (address, status)
+            checking = false
+        }
+    }
+
+    private var hint: (text: String, warn: Bool)? {
+        if checking { return ("Checking…", false) }
+        switch status {
+        case "added": return ("Has a Lynx account: they get access right away.", false)
+        case "invited": return ("No Lynx account yet: they get access when they sign up with this email.", false)
+        case "already": return ("Already has access.", true)
+        case "invalid": return ("Not an email address.", true)
+        default: return nil
         }
     }
 }

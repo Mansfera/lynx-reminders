@@ -7,7 +7,7 @@ Static files for passkey sign-in (SPEC §9). Passkeys are bound to the domain
 | path | for | what |
 |---|---|---|
 | `/passkey/` (`public/passkey/index.html`, `public/passkey/etherlynx.svg`) | iOS, iPadOS, macOS | The passkey page. The apps open it in a browser sheet (`ASWebAuthenticationSession`), it runs the passkey prompt and returns the session to `lynxreminders://auth-callback`. |
-| `/.well-known/assetlinks.json` (`public/.well-known/assetlinks.json`) | Android | Lets the app `com.mansfera.lynxreminders` use passkeys for this domain (Credential Manager). |
+| `/.well-known/assetlinks.json` (`public/.well-known/assetlinks.json`) | Android | Lets the app `xyz.etherlynx.reminders` (and `com.mansfera.lynxreminders`, the id up to 0.1.1) use passkeys for this domain (Credential Manager). |
 
 ## Hosting
 
@@ -39,7 +39,7 @@ The passkeys are the same either way: with a team later, add the entitlement and
 below and switch the apps to the native prompt; nobody has to create a new passkey.
 
 ```json
-{ "webcredentials": { "apps": ["<TEAMID>.com.mansfera.lynxreminders"] } }
+{ "webcredentials": { "apps": ["<TEAMID>.xyz.etherlynx.reminders"] } }
 ```
 
 ## When something changes

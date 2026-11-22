@@ -3,6 +3,16 @@
     "relation": ["delegate_permission/common.get_login_creds"],
     "target": {
       "namespace": "android_app",
+      "package_name": "xyz.etherlynx.reminders",
+      "sha256_cert_fingerprints": [
+        "79:7E:88:82:19:40:E6:EA:A4:29:F8:42:C3:B4:47:A4:D9:95:B0:D6:CC:D1:49:7F:82:50:68:FE:F0:0D:52:07"
+      ]
+    }
+  },
+  {
+    "relation": ["delegate_permission/common.get_login_creds"],
+    "target": {
+      "namespace": "android_app",
       "package_name": "com.mansfera.lynxreminders",
       "sha256_cert_fingerprints": [
         "79:7E:88:82:19:40:E6:EA:A4:29:F8:42:C3:B4:47:A4:D9:95:B0:D6:CC:D1:49:7F:82:50:68:FE:F0:0D:52:07"

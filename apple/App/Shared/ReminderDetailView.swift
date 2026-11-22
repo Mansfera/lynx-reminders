@@ -8,6 +8,7 @@ struct ReminderDetailView: View {
     @Environment(\.palette) private var pal
     @State private var sheet: TriggerSheet?
     @State private var newSubtask = ""
+    @FocusState private var subtaskFocused: Bool
     @State private var showRepeatDetails = false
 
     enum TriggerSheet: String, Identifiable {
@@ -316,12 +317,14 @@ struct ReminderDetailView: View {
                         Image(systemName: "plus").font(.system(size: 11, weight: .bold)).foregroundStyle(pal.muted).frame(width: 20)
                         TextField(subs.isEmpty ? "Add a subtask to make this a goal" : "Add a subtask", text: $newSubtask)
                             .textFieldStyle(.plain).font(Brand.row)
+                            .focused($subtaskFocused)
                             .onSubmit {
                                 model.quickAdd(newSubtask, parent: r.id)
                                 newSubtask = ""
                             }
                     }
                     .padding(.horizontal, Brand.Space.l).padding(.vertical, Brand.Space.m)
+                    .focusOnTap($subtaskFocused)
                 }
             }
         }

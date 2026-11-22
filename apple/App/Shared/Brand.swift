@@ -397,7 +397,10 @@ struct SunkField: View {
     @Binding var text: String
     var secure = false
     var mono = false
+    /// Email keyboard, no auto-capitalization or autocorrect.
+    var email = false
     @Environment(\.palette) private var pal
+    @FocusState private var focused: Bool
     var body: some View {
         Group {
             if secure {
@@ -408,8 +411,23 @@ struct SunkField: View {
         }
         .textFieldStyle(.plain)
         .font(mono ? Brand.mono(15) : Brand.text(13.5))
+        .autocorrectionDisabled(email)
+        #if os(iOS)
+        .textInputAutocapitalization(email ? .never : nil)
+        .keyboardType(email ? .emailAddress : .default)
+        #endif
+        .textContentType(email ? .emailAddress : nil)
+        .focused($focused)
         .padding(.horizontal, Brand.Space.l).padding(.vertical, Brand.Space.s)
         .background(pal.sunk, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .focusOnTap($focused, RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+}
+
+extension View {
+    /// A tap anywhere in the field's box (its padding too, not just the text line) focuses the field.
+    func focusOnTap(_ focus: FocusState<Bool>.Binding, _ shape: some Shape = Rectangle()) -> some View {
+        contentShape(shape).onTapGesture { focus.wrappedValue = true }
     }
 }
 

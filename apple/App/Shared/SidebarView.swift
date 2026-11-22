@@ -5,6 +5,13 @@ import SwiftUI
 struct SidebarView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.palette) private var pal
+    #if os(iOS)
+    @Environment(\.horizontalSizeClass) private var sizeClass
+    /// iPhone: the account moves to the top bar and a new-reminder field takes the footer's place.
+    private var phone: Bool { sizeClass == .compact }
+    #else
+    private let phone = false
+    #endif
 
     var body: some View {
         let q = model.queries
@@ -27,14 +34,23 @@ struct SidebarView: View {
                 .padding(.bottom, Brand.Space.xl)
             }
             .scrollIndicators(.never)
-            Hairline()
-            SidebarFooter()
+            if phone {
+                QuickAddField(item: .smart(.all), intoDefaultList: true)
+                    .padding(.horizontal, Brand.Space.m).padding(.vertical, Brand.Space.s)
+            } else {
+                Hairline()
+                SidebarFooter()
+            }
         }
         .background(pal.bg)
         #if os(iOS)
         .syncOnPull()
-        .navigationTitle("Lynx")
+        .navigationTitle(phone ? "" : "Lynx")
+        .navigationBarTitleDisplayMode(phone ? .inline : .automatic)
         .toolbar {
+            if phone {
+                ToolbarItem(placement: .topBarLeading) { AccountButton() }
+            }
             ToolbarItem(placement: .topBarTrailing) {
                 Button { model.showSettings = true } label: { Image(systemName: "gearshape") }.accessibilityLabel("Settings")
             }
@@ -120,7 +136,7 @@ struct StatsGrid: View {
         let n = queries.count(s)
         let overdueCount = s == .today ? queries.todaySummary().overdue : 0
         let overdue = overdueCount > 0
-        return Button { model.selection = .smart(s) } label: {
+        return Button { model.show(.smart(s)) } label: {
             VStack(alignment: .leading, spacing: Brand.Space.xxs) {
                 // The count stays ink; red is only for the overdue items themselves (SPEC §8).
                 HStack(alignment: .firstTextBaseline, spacing: Brand.Space.xs) {
@@ -152,7 +168,7 @@ struct SidebarRow: View {
 
     var body: some View {
         let selected = model.selection == item
-        Button { model.selection = item } label: {
+        Button { model.show(item) } label: {
             HStack(spacing: Brand.Space.s) {
                 Image(systemName: symbol).font(.system(size: 13)).foregroundStyle(pal.ink2).frame(width: 22)
                 Text(title).font(Brand.text(13.5, selected ? .medium : .regular))
@@ -178,7 +194,7 @@ struct ListRow: View {
 
     var body: some View {
         let selected = model.selection == .list(list.id)
-        Button { model.selection = .list(list.id) } label: {
+        Button { model.show(.list(list.id)) } label: {
             HStack(spacing: Brand.Space.s) {
                 ListBadge(list: list, size: 22)
                 Text(list.name).font(Brand.text(13.5, selected ? .medium : .regular)).lineLimit(1)
@@ -213,6 +229,35 @@ struct ListRow: View {
 }
 
 /// Account entry at the bottom of the sidebar.
+#if os(iOS)
+/// iPhone top bar: the person's avatar (or a person icon when signed out) opens Account. A red dot
+/// stands in for the footer's sync error line. The avatar is drawn into an image so the bar treats it
+/// like the gear: the same round button, same inset.
+struct AccountButton: View {
+    @Environment(AppModel.self) private var model
+    @Environment(\.palette) private var pal
+    @Environment(\.displayScale) private var scale
+
+    var body: some View {
+        Button { model.showAccount = true } label: { icon }
+            .accessibilityLabel(model.user == nil ? "Sign in to sync" : "Account")
+    }
+
+    private var icon: Image {
+        guard let u = model.user else { return Image(systemName: "person.crop.circle") }
+        let face = Avatar(profile: model.profile ?? Profile(id: u.id, email: u.email, displayName: nil), size: 28)
+            .overlay(alignment: .topTrailing) {
+                if model.syncError != nil { Circle().fill(pal.signal).frame(width: 8, height: 8) }
+            }
+            .environment(\.palette, pal)
+        let renderer = ImageRenderer(content: face)
+        renderer.scale = scale
+        guard let image = renderer.uiImage else { return Image(systemName: "person.crop.circle") }
+        return Image(uiImage: image).renderingMode(.original)
+    }
+}
+#endif
+
 struct SidebarFooter: View {
     @Environment(AppModel.self) private var model
     @Environment(\.palette) private var pal

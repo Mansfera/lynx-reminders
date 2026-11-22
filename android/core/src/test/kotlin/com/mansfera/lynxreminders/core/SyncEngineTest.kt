@@ -259,6 +259,17 @@ class SyncEngineTest {
     }
 
     @Test
+    fun adoptDropsTheUntouchedAutomaticList() {
+        val auto = ListRow("L1", LOCAL_USER_ID, ListRow.DEFAULT_NAME, createdAt = i(t0), updatedAt = i(t0))
+        val used = ListRow("L2", LOCAL_USER_ID, ListRow.DEFAULT_NAME, createdAt = i(t0), updatedAt = i(t0))
+        val renamed = ListRow("L3", LOCAL_USER_ID, "Groceries", createdAt = i(t0), updatedAt = i(t0))
+        val r = ReminderRow("R1", "L2", null, LOCAL_USER_ID, title = "x", createdAt = i(t0), updatedAt = i(t0))
+        val d = LocalDb(lists = listOf(auto, used, renamed).associateBy { it.id }, reminders = mapOf("R1" to r)).adoptedBy(me, "a@b.c")
+        assertNull(d.lists["L1"])
+        assertEquals(setOf("L2", "L3"), d.dirtyLists)
+    }
+
+    @Test
     fun serverTimestampsParse() {
         assertEquals(i("2026-11-14T08:00:00Z"), Instants.parse("2026-11-14T08:00:00+00:00"))
         assertEquals(i("2026-11-14T08:00:00.123456Z"), Instants.parse("2026-11-14T08:00:00.123456+00:00"))

@@ -47,6 +47,7 @@ struct LocationPickerSheet: View {
     @Environment(\.palette) private var pal
 
     @State private var query = ""
+    @FocusState private var queryFocused: Bool
     @State private var results: [MKMapItem] = []
     @State private var pin: CLLocationCoordinate2D?
     @State private var name = ""
@@ -64,11 +65,13 @@ struct LocationPickerSheet: View {
                 HStack(spacing: Brand.Space.xs) {
                     Image(systemName: "magnifyingglass").font(.system(size: 12)).foregroundStyle(pal.muted)
                     TextField("Search for a place or address", text: $query).textFieldStyle(.plain).font(Brand.text(13))
+                        .focused($queryFocused)
                         .onSubmit(search)
                     if searching { ProgressView().controlSize(.small) }
                 }
                 .padding(.horizontal, Brand.Space.m).padding(.vertical, Brand.Space.s)
                 .background(pal.sunk, in: Capsule())
+                .focusOnTap($queryFocused, Capsule())
                 RoundIconButton(symbol: "location.fill", label: "Current location", filled: false) { useCurrent() }
                     .opacity(locating ? 0.5 : 1)
             }
@@ -330,6 +333,7 @@ struct AppPickerSheet: View {
     @State private var name = ""
     @State private var bundleId: String?
     @State private var filter = ""
+    @FocusState private var filterFocused: Bool
     #if os(macOS)
     @State private var apps: [MacTriggers.InstalledApp] = []
     #endif
@@ -341,9 +345,11 @@ struct AppPickerSheet: View {
             HStack(spacing: Brand.Space.xs) {
                 Image(systemName: "magnifyingglass").font(.system(size: 12)).foregroundStyle(pal.muted)
                 TextField("Filter apps", text: $filter).textFieldStyle(.plain).font(Brand.text(13))
+                    .focused($filterFocused)
             }
             .padding(.horizontal, Brand.Space.m).padding(.vertical, Brand.Space.s)
             .background(pal.sunk, in: Capsule())
+            .focusOnTap($filterFocused, Capsule())
             Panel(padding: 0) {
                 ScrollView {
                     LazyVStack(spacing: 0) {

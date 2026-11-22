@@ -3,9 +3,10 @@
 One spec for three clients (macOS, iOS/iPadOS, Android) and one backend. When a client and this
 file disagree, this file wins; change it first, then the clients.
 
-Identifiers: bundle id / applicationId `com.mansfera.lynxreminders`; app data folder
-`~/Library/Application Support/com.mansfera.lynxreminders`; keychain service
-`com.mansfera.lynxreminders`; URL scheme `lynxreminders://`.
+Identifiers: bundle id / applicationId `xyz.etherlynx.reminders` (`com.mansfera.lynxreminders` up to
+0.1.1; the Android Kotlin package keeps that name); app data folder
+`~/Library/Application Support/xyz.etherlynx.reminders`; keychain service
+`xyz.etherlynx.reminders`; URL scheme `lynxreminders://`.
 
 ---
 
@@ -23,7 +24,10 @@ Identifiers: bundle id / applicationId `com.mansfera.lynxreminders`; app data fo
 * **Local-first.** Every client keeps the full data set it can see in a local store and works
   offline. Sync is a background reconciliation, never a blocker for UI.
 * **No account needed to start.** The app works fully local. Signing in uploads local data
-  (rows get the user's id) and turns sync on. Signing out offers "Keep a local copy" or
+  (rows get the user's id) and turns sync on. The one exception is the automatic empty
+  "Reminders" list a fresh device makes (name "Reminders", ink, list icon, never synced, no
+  reminders, live or deleted): it is dropped, not uploaded, so each new device doesn't add one more.
+  After the first sync a client creates "Reminders" again only if the account has no list at all. Signing out offers "Keep a local copy" or
   "Remove from this device".
 * **Triggers run on the device.** Time, location, Bluetooth and app triggers are evaluated by
   each client and turned into local notifications. The server stores rules, never fires them.
@@ -126,6 +130,7 @@ Visible to the inviter (shown as "Invited · pending").
 | `share_reminder` | `p_reminder uuid, p_email text` | same shape as `share_list` |
 | `unshare_reminder` | `p_reminder uuid, p_user uuid` | void (the sharer, the list owner, or the recipient themself) |
 | `cancel_invite` | `p_invite uuid` | void |
+| `share_preview` | `p_email text, p_list uuid \| p_reminder uuid` | what `share_list` / `share_reminder` would return, without sharing, or `"invalid"`; same permission checks. The share sheets call it 2 s after typing stops and enable Share once it answers `added` or `invited` (or the check fails) |
 | `sync_manifest` | — | `[{"t":"lists"\|"reminders", "id": uuid, "v": bigint}]` every row the caller can see, including soft-deleted |
 | `delete_account` | — | void; deletes the caller and everything they own |
 

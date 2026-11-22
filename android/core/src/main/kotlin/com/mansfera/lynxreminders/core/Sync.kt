@@ -294,8 +294,12 @@ class SyncEngine(
 
 /** Sign-in: local rows created before the account get the user's id and are marked dirty (SPEC §1). */
 fun LocalDb.adoptedBy(userId: String, email: String?): LocalDb {
-    // Rows deleted before they were ever synced never need to reach the server
-    val lists = lists.filterValues { !(it.isDeleted && it.version == 0L) }.mapValues { (_, l) -> if (l.ownerId == LOCAL_USER_ID) l.copy(ownerId = userId) else l }
+    // Rows deleted before they were ever synced never need to reach the server. Neither does a fresh
+    // device's automatic "Reminders" list while it's empty: it would add another one per device.
+    val used = reminders.values.map { it.listId }.toSet()
+    val lists = lists.filterValues { !(it.isDeleted && it.version == 0L) }
+        .filterValues { !(it.version == 0L && it.ownerId == LOCAL_USER_ID && it.id !in used && it.isUntouchedDefault) }
+        .mapValues { (_, l) -> if (l.ownerId == LOCAL_USER_ID) l.copy(ownerId = userId) else l }
     val rem = reminders.filterValues { !(it.isDeleted && it.version == 0L) }.mapValues { (_, r) ->
         r.copy(
             createdBy = if (r.createdBy == LOCAL_USER_ID) userId else r.createdBy,

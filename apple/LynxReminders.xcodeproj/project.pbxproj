@@ -65,7 +65,7 @@
 /* Begin PBXFileReference section */
 		04889EF1D61376571C0914F3 /* FireTriggerIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FireTriggerIntent.swift; sourceTree = "<group>"; };
 		04B78D385C692CCB8072659C /* AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
-		063C1D130016EC1467B04C61 /* Lynx Reminders.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Lynx Reminders.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		063C1D130016EC1467B04C61 /* LynxReminders-iOS.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = "LynxReminders-iOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		0989762E767BAB77BAD30675 /* MainView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainView.swift; sourceTree = "<group>"; };
 		0CF16536194FE7C3AAAAA6C8 /* MacApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacApp.swift; sourceTree = "<group>"; };
 		1DEF5A42C5F26BC00B5F97A8 /* ReminderDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReminderDetailView.swift; sourceTree = "<group>"; };
@@ -76,7 +76,7 @@
 		3D268D2BCC0EE9B648B90588 /* LynxRemindersApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LynxRemindersApp.swift; sourceTree = "<group>"; };
 		4584A61A08B5D7D08CA61C94 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		47CE88189CBB662D9C1B10DE /* Brand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Brand.swift; sourceTree = "<group>"; };
-		4C987164CC047D6A4AA99F91 /* LynxReminders-macOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; name = "LynxReminders-macOS.app"; path = "Lynx Reminders.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		4C987164CC047D6A4AA99F91 /* LynxReminders-macOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "LynxReminders-macOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		5A844995D3379072C45609FA /* Formats.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Formats.swift; sourceTree = "<group>"; };
 		5AB7537A8062607B8DE3C1EE /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		69A7C2C7771DC3A2FE59D668 /* SidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarView.swift; sourceTree = "<group>"; };
@@ -186,7 +186,7 @@
 		9C1335EC52CFEE867DD8146F /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				063C1D130016EC1467B04C61 /* Lynx Reminders.app */,
+				063C1D130016EC1467B04C61 /* LynxReminders-iOS.app */,
 				4C987164CC047D6A4AA99F91 /* LynxReminders-macOS.app */,
 			);
 			name = Products;
@@ -263,7 +263,7 @@
 				E924A2159CDD4D71D0E50AF0 /* LynxSync */,
 			);
 			productName = "LynxReminders-iOS";
-			productReference = 063C1D130016EC1467B04C61 /* Lynx Reminders.app */;
+			productReference = 063C1D130016EC1467B04C61 /* LynxReminders-iOS.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -280,6 +280,7 @@
 						ProvisioningStyle = Manual;
 					};
 					6D46318ADB847BAB97287167 = {
+						DevelopmentTeam = "";
 						ProvisioningStyle = Automatic;
 					};
 				};
@@ -415,7 +416,6 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = DTUN22Y7G6;
 				INFOPLIST_FILE = App/iOS/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -481,7 +481,7 @@
 				MARKETING_VERSION = 0.1.2;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
-				PRODUCT_BUNDLE_IDENTIFIER = com.mansfera.lynxreminders;
+				PRODUCT_BUNDLE_IDENTIFIER = xyz.etherlynx.reminders;
 				PRODUCT_NAME = "Lynx Reminders";
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
@@ -571,7 +571,7 @@
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
-				PRODUCT_BUNDLE_IDENTIFIER = com.mansfera.lynxreminders;
+				PRODUCT_BUNDLE_IDENTIFIER = xyz.etherlynx.reminders;
 				PRODUCT_NAME = "Lynx Reminders";
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -587,7 +587,6 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = DTUN22Y7G6;
 				INFOPLIST_FILE = App/iOS/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",

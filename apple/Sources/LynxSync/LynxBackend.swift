@@ -104,7 +104,7 @@ public final class LynxBackend: Sendable {
     public let config: BackendConfig
     public let client: SupabaseClient
 
-    /// `sessionStorage` defaults to the Keychain (service `com.mansfera.lynxreminders`, SPEC §9).
+    /// `sessionStorage` defaults to the Keychain (service `xyz.etherlynx.reminders`, SPEC §9).
     public convenience init(config: BackendConfig, sessionFolder: URL) {
         self.init(config: config, sessionStorage: FileSessionStorage(folder: sessionFolder))
     }
@@ -273,6 +273,14 @@ public final class LynxBackend: Sendable {
             try await client.rpc("share_list", params: ["p_list": list.uuidString, "p_email": email.lowercased()])
                 .execute().value
         }
+    }
+
+    /// What sharing a list or reminder with `email` would do, without sharing (`share_preview`).
+    public func sharePreview(email: String, list: UUID? = nil, reminder: UUID? = nil) async throws -> ShareResult {
+        var params = ["p_email": email.lowercased()]
+        if let list { params["p_list"] = list.uuidString }
+        if let reminder { params["p_reminder"] = reminder.uuidString }
+        return try await mapErrors { try await client.rpc("share_preview", params: params).execute().value }
     }
 
     public func unshareList(_ list: UUID, user: UUID) async throws {

@@ -33,9 +33,10 @@ open "build/Lynx Reminders.app"
 uses the committed `LynxReminders.xcodeproj`. You can also open the project in Xcode and run the
 `LynxReminders-macOS` scheme.
 
-Data lives in `~/Library/Application Support/com.mansfera.lynxreminders/` (`store.json` = synced rows +
+Data lives in `~/Library/Application Support/xyz.etherlynx.reminders/` (`store.json` = synced rows +
 dirty marks, `device.json` = local-only cooldowns, snoozes, region states). The session is in the Keychain,
-service `com.mansfera.lynxreminders`.
+service `xyz.etherlynx.reminders`. Builds up to 0.1.1 used `com.mansfera.lynxreminders`; the first launch
+moves that data folder and the settings over (sign in again once).
 
 The app keeps running in the menu bar when the window is closed, so location, Bluetooth and app triggers keep
 working; turn on *Open at login* in Settings (⌘,). Shortcuts: ⌘N new reminder (focuses quick add), ⇧⌘N new
@@ -100,7 +101,7 @@ the target for the simulator SDK directly (skipping only the asset catalog, whos
 1. In `project.yml` set `DEVELOPMENT_TEAM: <your team id>` (base settings) and remove the macOS-only
    `CODE_SIGN_IDENTITY: "-"` / `CODE_SIGN_STYLE: Manual` if you want Xcode-managed signing on the Mac too;
    run `xcodegen generate`.
-2. Bundle id stays `com.mansfera.lynxreminders` (register it in the developer portal; Xcode can do it).
+2. Bundle id stays `xyz.etherlynx.reminders` (register it in the developer portal; Xcode can do it).
 3. Capabilities:
    - **Location**: nothing to add in the portal; the usage strings are in Info.plist. For region monitoring
      with the app closed, iOS asks for *Always* after *While Using*.

@@ -58,7 +58,7 @@ class Repository(
     fun defaultListId(): String {
         val pref = device.value.settings.defaultListId
         val lists = db.visibleLists()
-        return lists.firstOrNull { it.id == pref }?.id ?: lists.firstOrNull()?.id ?: createList("Reminders", "ink", "list").id
+        return lists.firstOrNull { it.id == pref }?.id ?: lists.firstOrNull()?.id ?: createList(ListRow.DEFAULT_NAME, "ink", "list").id
     }
 
     // ---------- reminders ----------
