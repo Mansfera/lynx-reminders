@@ -186,6 +186,15 @@ class SupabaseRemote(private val client: SupabaseClient) : RemoteStore {
         LynxJson.decodeFromString(ShareResult.serializer(), pg.rpc("share_list", buildJsonObject { put("p_list", listId); put("p_email", email.trim().lowercase()) }).data)
     }
 
+    /** What sharing a list or reminder with [email] would do, without sharing (`share_preview`). */
+    suspend fun sharePreview(email: String, listId: String? = null, reminderId: String? = null): ShareResult = remote {
+        LynxJson.decodeFromString(ShareResult.serializer(), pg.rpc("share_preview", buildJsonObject {
+            put("p_email", email.trim().lowercase())
+            listId?.let { put("p_list", it) }
+            reminderId?.let { put("p_reminder", it) }
+        }).data)
+    }
+
     suspend fun unshareList(listId: String, userId: String) = remote {
         pg.rpc("unshare_list", buildJsonObject { put("p_list", listId); put("p_user", userId) }); Unit
     }

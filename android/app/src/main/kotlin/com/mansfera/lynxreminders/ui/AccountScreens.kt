@@ -73,6 +73,8 @@ import com.mansfera.lynxreminders.sync.AccountState
 import com.mansfera.lynxreminders.sync.SyncStatus
 import com.mansfera.lynxreminders.triggers.Perms
 import java.time.LocalTime
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.delay
 
 // ---------- welcome ----------
 
@@ -535,6 +537,9 @@ fun ListEditScreen(vm: AppVM, db: LocalDb, id: String?, signedIn: Boolean, onDon
 
 // ---------- sharing ----------
 
+/** The same shape the server accepts, plus a dot in the domain. */
+private val EMAIL = Regex("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$")
+
 @Composable
 fun ShareScreen(vm: AppVM, db: LocalDb, listId: String?, reminderId: String?, onBack: () -> Unit) {
     val c = lynx
@@ -546,6 +551,42 @@ fun ShareScreen(vm: AppVM, db: LocalDb, listId: String?, reminderId: String?, on
     val list = listId?.let { db.lists[it] }
     val reminder = reminderId?.let { db.reminders[it] }
     val isOwner = list?.ownerId == db.me
+
+    // Two seconds after typing stops, ask the server what sharing would do (share_preview, SPEC §3).
+    // Invite turns on once it answers "added" or "invited", or the check couldn't run (offline).
+    var checked by remember { mutableStateOf<Pair<String, String>?>(null) }
+    var checking by remember { mutableStateOf(false) }
+    val looksLikeEmail = EMAIL.matches(email)
+    val status = checked?.takeIf { it.first == email }?.second
+    val canShare = !busy && looksLikeEmail && status in setOf("added", "invited", "unknown")
+    LaunchedEffect(email) {
+        checking = false
+        if (email.isEmpty()) return@LaunchedEffect
+        delay(2_000)  // a new keystroke restarts this effect, cancelling the wait
+        if (!looksLikeEmail) { checked = email to "invalid"; return@LaunchedEffect }
+        checking = true
+        val answer = try {
+            remote.sharePreview(email, listId = list?.id, reminderId = if (list == null) reminderId else null).status
+        } catch (e: CancellationException) { throw e } catch (e: Exception) { "unknown" }
+        checked = email to answer
+        checking = false
+    }
+
+    fun invite() {
+        if (!canShare) return
+        val e = email
+        busy = true; error = null; msg = null
+        vm.run(onError = { error = it; busy = false }, onDone = { busy = false }) {
+            val res = if (list != null) remote.shareList(list.id, e) else remote.shareReminder(reminderId!!, e)
+            msg = when (res.status) {
+                "added" -> "$e can see it now."
+                "invited" -> "$e has no account yet. They get access when they sign up."
+                else -> "$e already has access."
+            }
+            email = ""
+            vm.g.sync.syncNow(forceManifest = true)
+        }
+    }
 
     fun act(block: suspend () -> Unit, after: String? = null) {
         busy = true; error = null; msg = null
@@ -562,22 +603,21 @@ fun ShareScreen(vm: AppVM, db: LocalDb, listId: String?, reminderId: String?, on
                     Text(if (list != null) "Everyone you add can see and edit every reminder in this list." else "They see this reminder and its subtasks in Shared with me. Your list stays private.", style = LynxType.body, color = c.muted)
                     Spacer(Modifier.height(Sp.s10))
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        LynxField(email, { email = it.trim() }, "Email address", Modifier.weight(1f), keyboardType = KeyboardType.Email)
+                        LynxField(email, { email = it.trim() }, "Email address", Modifier.weight(1f), keyboardType = KeyboardType.Email, onDone = ::invite)
                         Spacer(Modifier.size(Sp.s6))
-                        InkPill("Invite", Icons.AutoMirrored.Rounded.ArrowForward, enabled = email.contains('@') && !busy) {
-                            val e = email
-                            busy = true; error = null; msg = null
-                            vm.run(onError = { error = it; busy = false }, onDone = { busy = false }) {
-                                val res = if (list != null) remote.shareList(list.id, e) else remote.shareReminder(reminderId!!, e)
-                                msg = when (res.status) {
-                                    "added" -> "$e can see it now."
-                                    "invited" -> "$e has no account yet. They get access when they sign up."
-                                    else -> "$e already has access."
-                                }
-                                email = ""
-                                vm.g.sync.syncNow(forceManifest = true)
-                            }
-                        }
+                        InkPill("Invite", Icons.AutoMirrored.Rounded.ArrowForward, enabled = canShare, onClick = ::invite)
+                    }
+                    val hint = when {
+                        checking -> "Checking…" to false
+                        status == "added" -> "Has a Lynx account: they get access right away." to false
+                        status == "invited" -> "No Lynx account yet: they get access when they sign up with this email." to false
+                        status == "already" -> "Already has access." to true
+                        status == "invalid" -> "Not an email address." to true
+                        else -> null
+                    }
+                    hint?.let { (text, warn) ->
+                        Spacer(Modifier.height(Sp.s6))
+                        Text(text, style = LynxType.caption, color = if (warn) c.signal else c.muted)
                     }
                 }
             }
