@@ -26,7 +26,7 @@ struct LynxRemindersApp: App {
         .commands { LynxCommands(model: model) }
 
         Settings {
-            SettingsView().environment(model)
+            SettingsView().environment(model).themed()
         }
 
         MenuBarExtra(isInserted: Binding(get: { model.settings.showMenuBarExtra }, set: { model.settings.showMenuBarExtra = $0 })) {
