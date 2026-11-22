@@ -29,7 +29,8 @@ xcodebuild \
     build
 
 rm -rf "$OUT/$APP"
-cp -R "$OUT/DerivedData/Build/Products/$CONFIG/$APP" "$OUT/$APP"
+# Moved, not copied, so only one copy of the app is kept; the next xcodebuild recreates the bundle from its cached objects.
+mv "$OUT/DerivedData/Build/Products/$CONFIG/$APP" "$OUT/$APP"
 # Config/Supabase.local.json (git-ignored, optional) replaces the hosted project, e.g. the local stack.
 if [ -f Config/Supabase.local.json ]; then
     cp Config/Supabase.local.json "$OUT/$APP/Contents/Resources/Supabase.json"

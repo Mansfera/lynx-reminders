@@ -47,6 +47,7 @@ ditto "$APP" "$STAGE/Lynx Reminders.app"
 ln -s /Applications "$STAGE/Applications"
 DMG="dist/Lynx-Reminders-$V.dmg"
 hdiutil create -volname "Lynx Reminders" -srcfolder "$STAGE" -ov -format UDZO "$DMG" >/dev/null
+rm -rf "$STAGE"  # the staging copy of the app is only needed inside the DMG
 
 # Android: the shrunk (R8) release build, signed with the debug key (no release key yet) so it installs over
 # earlier sideloaded versions; about 9 MB instead of 130 MB for the unshrunk debug build.
@@ -54,7 +55,7 @@ hdiutil create -volname "Lynx Reminders" -srcfolder "$STAGE" -ov -format UDZO "$
 grep -q 'SUPABASE_URL = "https://' android/app/build/generated/source/buildConfig/release/com/mansfera/lynxreminders/BuildConfig.java \
     || { echo "The APK doesn't point at the hosted project."; exit 1; }
 APK="dist/Lynx-Reminders-$V.apk"
-cp android/app/build/outputs/apk/release/app-release.apk "$APK"
+mv android/app/build/outputs/apk/release/app-release.apk "$APK"
 
 (cd dist && shasum -a 256 "$(basename "$DMG")" "$(basename "$APK")") > dist/SHA256SUMS.txt
 cat dist/SHA256SUMS.txt
