@@ -32,6 +32,9 @@ android {
 
     buildTypes {
         release {
+            // No release key yet: the shrunk build is signed with the debug key, so it installs over the
+            // debug-signed APKs released up to 0.2.0 and keeps their data.
+            signingConfig = signingConfigs.getByName("debug")
             isMinifyEnabled = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
@@ -45,7 +48,8 @@ android {
         buildConfig = true
     }
     packaging {
-        resources.excludes += setOf("/META-INF/{AL2.0,LGPL2.1}", "META-INF/INDEX.LIST", "META-INF/*.kotlin_module")
+        // native-image: GraalVM reflection config from the Anthropic SDK (4 MB), unused on Android.
+        resources.excludes += setOf("/META-INF/{AL2.0,LGPL2.1}", "META-INF/INDEX.LIST", "META-INF/*.kotlin_module", "META-INF/native-image/**")
     }
 }
 

@@ -48,12 +48,13 @@ ln -s /Applications "$STAGE/Applications"
 DMG="dist/Lynx-Reminders-$V.dmg"
 hdiutil create -volname "Lynx Reminders" -srcfolder "$STAGE" -ov -format UDZO "$DMG" >/dev/null
 
-# Android: debug-signed APK (no release key yet), installable by sideloading
-(cd android && ./gradlew :app:assembleDebug --console=plain -q)
-grep -q 'SUPABASE_URL = "https://' android/app/build/generated/source/buildConfig/debug/com/mansfera/lynxreminders/BuildConfig.java \
+# Android: the shrunk (R8) release build, signed with the debug key (no release key yet) so it installs over
+# earlier sideloaded versions; about 9 MB instead of 130 MB for the unshrunk debug build.
+(cd android && ./gradlew :app:assembleRelease --console=plain -q)
+grep -q 'SUPABASE_URL = "https://' android/app/build/generated/source/buildConfig/release/com/mansfera/lynxreminders/BuildConfig.java \
     || { echo "The APK doesn't point at the hosted project."; exit 1; }
 APK="dist/Lynx-Reminders-$V.apk"
-cp android/app/build/outputs/apk/debug/app-debug.apk "$APK"
+cp android/app/build/outputs/apk/release/app-release.apk "$APK"
 
 (cd dist && shasum -a 256 "$(basename "$DMG")" "$(basename "$APK")") > dist/SHA256SUMS.txt
 cat dist/SHA256SUMS.txt
