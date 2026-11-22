@@ -24,8 +24,8 @@ android {
         applicationId = "xyz.etherlynx.reminders"
         minSdk = 29
         targetSdk = 36
-        versionCode = 4
-        versionName = "0.1.2"
+        versionCode = 5
+        versionName = "0.1.3"
         buildConfigField("String", "SUPABASE_URL", "\"${supabaseProps.getProperty("supabase.url", "http://10.0.2.2:54321")}\"")
         buildConfigField("String", "SUPABASE_ANON_KEY", "\"${supabaseProps.getProperty("supabase.anonKey", "")}\"")
     }
