@@ -54,7 +54,7 @@ struct LocationPickerSheet: View {
     @State private var address: String?
     @State private var radius: Double = 150
     @State private var on: LocationEvent = .arrive
-    @State private var camera: MapCameraPosition = .automatic
+    @State private var camera: MapCameraPosition = .userLocation(fallback: .automatic)
     @State private var searching = false
     @State private var locating = false
 
@@ -99,6 +99,7 @@ struct LocationPickerSheet: View {
             }
             MapReader { proxy in
                 Map(position: $camera) {
+                    UserAnnotation()
                     if let pin {
                         MapCircle(center: pin, radius: radius)
                             .foregroundStyle(pal.fg.opacity(0.12))
@@ -125,12 +126,15 @@ struct LocationPickerSheet: View {
                     MapZoomStepper()
                     #endif
                     MapCompass()
+                    #if os(iOS)
+                    MapUserLocationButton()
+                    #endif
                 }
             }
             .frame(minHeight: 220)
             .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).strokeBorder(pal.line))
-            Text("Click the map to drop the pin, drag it to adjust.").font(Brand.caption).foregroundStyle(pal.muted)
+            Text(Platform.isMac ? "Click the map to drop the pin, drag it to adjust." : "Tap the map to drop the pin, drag it to adjust.").font(Brand.caption).foregroundStyle(pal.muted)
             Panel(padding: 0) {
                 VStack(spacing: 0) {
                     FormRow("Name") {
@@ -152,6 +156,8 @@ struct LocationPickerSheet: View {
     }
 
     private func load() {
+        // Ask up front so the map can show where you are (the dot and its button need permission).
+        if model.triggers.authorization == .notDetermined { model.triggers.requestAlways() }
         guard let l = model.db.reminders[reminderId]?.location else { return }
         let c = CLLocationCoordinate2D(latitude: l.lat, longitude: l.lon)
         pin = c
@@ -191,7 +197,12 @@ struct LocationPickerSheet: View {
         Task {
             let loc = await model.triggers.currentLocation()
             locating = false
-            guard let loc else { model.toast = "Location is not available. Allow it in System Settings → Privacy."; return }
+            guard let loc else {
+                model.toast = model.triggers.locationAllowed
+                    ? "Couldn't find where you are. Try again in a moment."
+                    : "Location is off for Lynx. Allow it in Settings → Permissions."
+                return
+            }
             pin = loc.coordinate
             if name.isEmpty { name = "Here" }
             camera = .region(MKCoordinateRegion(center: loc.coordinate, latitudinalMeters: 800, longitudinalMeters: 800))

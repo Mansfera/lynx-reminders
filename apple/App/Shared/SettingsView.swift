@@ -1,5 +1,7 @@
+import CoreLocation
 import LynxCore
 import SwiftUI
+import UserNotifications
 
 /// Settings (SPEC §10).
 struct SettingsView: View {
@@ -8,6 +10,7 @@ struct SettingsView: View {
     @State private var claudeKey = ""
     @State private var connecting = false
     @State private var claudeError: String?
+    @AppStorage("permissionsHidden") private var permissionsHidden = false
     #if os(macOS)
     @State private var launchAtLogin = LaunchAtLogin.enabled
     @State private var loginError: String?
@@ -61,6 +64,7 @@ struct SettingsView: View {
                 }
                 Text("Weeks start on the day your system uses.").font(Brand.caption).foregroundStyle(pal.muted)
                 claudeSection(s)
+                permissionsSection
                 #if os(macOS)
                 Caption("Mac")
                 Panel(padding: 0) {
@@ -183,6 +187,65 @@ struct SettingsView: View {
         }
     }
 
+    // MARK: Permissions
+
+    private var notificationsGranted: Bool {
+        switch model.notificationsAuthorization {
+        case .authorized, .provisional: true
+        #if os(iOS)
+        case .ephemeral: true
+        #endif
+        default: false
+        }
+    }
+
+    private var locationGranted: Bool {
+        model.locationAuthorization == .authorizedAlways
+    }
+
+    private var locationDetail: String {
+        #if os(iOS)
+        if model.locationAuthorization == .authorizedWhenInUse {
+            return "Set to While Using: choose Always so arrive / leave alerts work while the app is closed"
+        }
+        return "For arrive / leave reminders while the app is closed"
+        #else
+        return "For arrive / leave reminders"
+        #endif
+    }
+
+    /// Same rows as Android's Settings → Permissions. Once everything is granted it can be hidden; it comes back by
+    /// itself if a permission is turned off later.
+    @ViewBuilder private var permissionsSection: some View {
+        let allGranted = notificationsGranted && locationGranted
+        if !(allGranted && permissionsHidden) {
+            HStack {
+                Caption("Permissions")
+                Spacer()
+                if allGranted {
+                    Button("Hide") { withAnimation(Motion.content) { permissionsHidden = true } }
+                        .buttonStyle(.plain).font(Brand.text(11, .medium)).foregroundStyle(pal.muted)
+                }
+            }
+            Panel(padding: 0) {
+                VStack(spacing: 0) {
+                    PermissionRow(title: "Notifications", detail: "Needed for every alert", granted: notificationsGranted) {
+                        if model.notificationsAuthorization == .notDetermined {
+                            model.notifications.requestAuthorization()
+                        } else {
+                            Platform.openSettings(.notifications)
+                        }
+                    }
+                    Hairline()
+                    PermissionRow(title: Platform.isMac ? "Location" : "Location, all the time", detail: locationDetail, granted: locationGranted) {
+                        if !model.triggers.askForLocation() { Platform.openSettings(.location) }
+                    }
+                }
+            }
+            .task { await model.notifications.refreshStatus() }
+        }
+    }
+
     private func connectClaude() {
         let key = claudeKey.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !key.isEmpty, !connecting else { return }
@@ -197,5 +260,33 @@ struct SettingsView: View {
             }
             connecting = false
         }
+    }
+}
+
+/// A permission with what it's for; "Allow" until granted, then a check.
+private struct PermissionRow: View {
+    let title: String
+    let detail: String
+    let granted: Bool
+    let allow: () -> Void
+    @Environment(\.palette) private var pal
+
+    var body: some View {
+        HStack(spacing: Brand.Space.s) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title).font(Brand.text(13))
+                Text(detail).font(Brand.caption).foregroundStyle(pal.muted).fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: Brand.Space.s)
+            if granted {
+                Image(systemName: "checkmark").font(.system(size: 13, weight: .semibold)).foregroundStyle(pal.fg)
+                    .accessibilityLabel("Granted")
+            } else {
+                SoftButton(title: "Allow", action: allow)
+            }
+        }
+        .padding(.horizontal, Brand.Space.l)
+        .padding(.vertical, Brand.Space.s)
+        .frame(minHeight: Platform.isMac ? 40 : 44)
     }
 }

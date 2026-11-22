@@ -25,6 +25,22 @@ enum Platform {
         #endif
     }
 
+    enum SettingsPane { case notifications, location }
+
+    /// The system settings page where a permission that was already answered can be changed.
+    @MainActor static func openSettings(_ pane: SettingsPane) {
+        #if os(macOS)
+        let id = Bundle.main.bundleIdentifier ?? ""
+        let url = switch pane {
+        case .notifications: "x-apple.systempreferences:com.apple.Notifications-Settings.extension?id=\(id)"
+        case .location: "x-apple.systempreferences:com.apple.preference.security?Privacy_LocationServices"
+        }
+        #else
+        let url = pane == .notifications ? UIApplication.openNotificationSettingsURLString : UIApplication.openSettingsURLString
+        #endif
+        if let u = URL(string: url) { open(u) }
+    }
+
     @MainActor static func open(_ url: URL) {
         #if os(macOS)
         NSWorkspace.shared.open(url)

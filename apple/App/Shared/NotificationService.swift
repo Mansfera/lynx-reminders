@@ -36,7 +36,16 @@ final class NotificationService: NSObject {
     }
 
     func requestAuthorization() {
-        center?.requestAuthorization(options: [.alert, .sound, .badge]) { _, _ in }
+        guard let center else { return }
+        Task {
+            _ = try? await center.requestAuthorization(options: [.alert, .sound, .badge])
+            await refreshStatus()
+        }
+    }
+
+    func refreshStatus() async {
+        guard let center else { return }
+        model.notificationsAuthorization = await center.notificationSettings().authorizationStatus
     }
 
     /// Replaces the pending time-based notifications with the plan (debounced: many edits → one rebuild).

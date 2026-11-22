@@ -1,8 +1,10 @@
+import CoreLocation
 import Foundation
 import LynxCore
 import LynxSync
 import Observation
 import SwiftUI
+import UserNotifications
 
 /// What the sidebar selects.
 enum SidebarItem: Hashable {
@@ -53,6 +55,9 @@ final class AppModel {
     var shareListTarget: UUID?
     var shareReminderTarget: UUID?
     var toast: String?
+    /// Settings → Permissions. Set by TriggerService and NotificationService; re-read when the app comes back.
+    var locationAuthorization: CLAuthorizationStatus = .notDetermined
+    var notificationsAuthorization: UNAuthorizationStatus = .notDetermined
 
     // Claude (the user's own Anthropic key)
     /// Whether an Anthropic key is saved on this device. Demo runs never touch the Keychain.
@@ -103,6 +108,7 @@ final class AppModel {
         backend = BackendConfig.load().map { scratch ? LynxBackend(config: $0, sessionFolder: folder) : LynxBackend(config: $0) }
         notifications = NotificationService(model: self)
         triggers = TriggerService(model: self)
+        locationAuthorization = triggers.authorization
     }
 
     /// Called once from the app's first scene.
@@ -117,6 +123,7 @@ final class AppModel {
         }
         notifications.configure()
         notifications.purgeUnknown()
+        Task { await notifications.refreshStatus() }
         if settings.onboarded { notifications.requestAuthorization() }
         if ProcessInfo.processInfo.environment["LYNX_DEMO"] == "1" { DemoData.seed(into: self) }
         ensureDefaultList()
@@ -139,6 +146,7 @@ final class AppModel {
     func becameActive() {
         now = Date()
         rebuildAlerts()
+        Task { await notifications.refreshStatus() }
         Task { await engine?.schedule(after: 0.2) }
     }
 

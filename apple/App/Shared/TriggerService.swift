@@ -17,6 +17,7 @@ final class TriggerService: NSObject {
     private var monitored: [String: RegionPlanner.Region] = [:]
     private var refreshTask: Task<Void, Never>?
     private var locationWaiters: [CheckedContinuation<CLLocation?, Never>] = []
+    private var authorizationWaiters: [CheckedContinuation<Void, Never>] = []
     private(set) var authorization: CLAuthorizationStatus = .notDetermined
     #if os(macOS)
     let mac = MacTriggers()
@@ -138,9 +139,41 @@ final class TriggerService: NSObject {
         #endif
     }
 
-    /// One-shot current location for the picker.
+    var locationAllowed: Bool {
+        #if os(iOS)
+        authorization == .authorizedAlways || authorization == .authorizedWhenInUse
+        #else
+        authorization == .authorizedAlways || authorization == .authorized
+        #endif
+    }
+
+    /// Settings → Permissions: the first tap asks the system, and on iOS a second tap asks to upgrade
+    /// "While using" to "Always" (iOS shows that prompt once). Returns false when only the Settings app can change it.
+    func askForLocation() -> Bool {
+        switch authorization {
+        case .notDetermined:
+            requestAlways()
+            return true
+        #if os(iOS)
+        case .authorizedWhenInUse where !UserDefaults.standard.bool(forKey: "askedAlwaysLocation"):
+            UserDefaults.standard.set(true, forKey: "askedAlwaysLocation")
+            manager.requestAlwaysAuthorization()
+            return true
+        #endif
+        default:
+            return false
+        }
+    }
+
+    /// One-shot current location for the picker. Asks for permission first and waits for the answer:
+    /// `requestLocation()` before that fails straight away.
     func currentLocation() async -> CLLocation? {
-        if authorization == .notDetermined { manager.requestWhenInUseAuthorization() }
+        if authorization == .notDetermined {
+            manager.requestWhenInUseAuthorization()
+            await withCheckedContinuation { authorizationWaiters.append($0) }
+        }
+        guard locationAllowed else { return nil }
+        if let last = manager.location, -last.timestamp.timeIntervalSinceNow < 60 { return last }
         return await withCheckedContinuation { cont in
             locationWaiters.append(cont)
             manager.requestLocation()
@@ -155,6 +188,12 @@ final class TriggerService: NSObject {
 
     fileprivate func authorizationChanged(_ status: CLAuthorizationStatus) {
         authorization = status
+        model.locationAuthorization = status
+        if status != .notDetermined {
+            let waiters = authorizationWaiters
+            authorizationWaiters = []
+            for w in waiters { w.resume() }
+        }
         refresh()
     }
 }
@@ -171,6 +210,7 @@ extension TriggerService: CLLocationManagerDelegate {
     }
 
     nonisolated func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
-        Task { @MainActor in self.deliver(nil) }
+        let last = manager.location
+        Task { @MainActor in self.deliver(last) }
     }
 }

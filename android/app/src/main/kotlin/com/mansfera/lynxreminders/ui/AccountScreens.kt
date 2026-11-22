@@ -227,6 +227,8 @@ fun AccountScreen(
     val btLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { refresh++ }
     val locLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { refresh++ }
     val bgLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { refresh++ }
+    val uiPrefs = remember { ctx.getSharedPreferences("lynx_ui", android.content.Context.MODE_PRIVATE) }
+    var permsHidden by remember { mutableStateOf(uiPrefs.getBoolean("permissionsHidden", false)) }
 
     Column(Modifier.fillMaxSize().background(c.bg)) {
         ScreenHeader("Account", onBack = onBack)
@@ -297,31 +299,44 @@ fun AccountScreen(
 
             ClaudeSettings(vm, settings)
 
-            SectionLabel("Permissions")
+            // Once everything is granted the section can be hidden; it comes back if a permission is turned off later.
             androidx.compose.runtime.key(refresh) {
-                Panel(padding = 0.dp) {
-                    PermRow("Notifications", "Needed for every alert", Perms.notifications(ctx)) {
-                        if (Build.VERSION.SDK_INT >= 33) notifLauncher.launch(Manifest.permission.POST_NOTIFICATIONS) else openAppSettings(ctx)
+                val notif = Perms.notifications(ctx)
+                val exact = vm.g.alarms.canExact()
+                val fine = Perms.fineLocation(ctx)
+                val bg = Perms.backgroundLocation(ctx)
+                val bt = Perms.bluetooth(ctx)
+                val usage = Perms.usageAccess(ctx)
+                val allGranted = notif && exact && fine && bg && bt && usage
+                if (!(allGranted && permsHidden)) {
+                    Row(verticalAlignment = Alignment.Bottom) {
+                        SectionLabel("Permissions", Modifier.weight(1f))
+                        if (allGranted) TextAction("Hide", color = c.muted) {
+                            permsHidden = true
+                            uiPrefs.edit().putBoolean("permissionsHidden", true).apply()
+                        }
                     }
-                    Hairline()
-                    val exact = vm.g.alarms.canExact()
-                    PermRow("Alarms on time", if (exact) "Alerts fire at the exact minute" else "Without it Android may delay alerts by several minutes", exact) {
-                        if (Build.VERSION.SDK_INT >= 31) ctx.startActivity(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, Uri.parse("package:" + ctx.packageName)))
-                    }
-                    Hairline()
-                    val fine = Perms.fineLocation(ctx)
-                    val bg = Perms.backgroundLocation(ctx)
-                    PermRow("Location, all the time", "For arrive / leave reminders while the app is closed", fine && bg) {
-                        if (!fine) locLauncher.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
-                        else bgLauncher.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
-                    }
-                    Hairline()
-                    PermRow("Nearby devices", "For Bluetooth connect / disconnect reminders", Perms.bluetooth(ctx)) {
-                        if (Build.VERSION.SDK_INT >= 31) btLauncher.launch(Manifest.permission.BLUETOOTH_CONNECT)
-                    }
-                    Hairline()
-                    PermRow("Usage access", "For “when I open an app” reminders", Perms.usageAccess(ctx)) {
-                        ctx.startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS))
+                    Panel(padding = 0.dp) {
+                        PermRow("Notifications", "Needed for every alert", notif) {
+                            if (Build.VERSION.SDK_INT >= 33) notifLauncher.launch(Manifest.permission.POST_NOTIFICATIONS) else openAppSettings(ctx)
+                        }
+                        Hairline()
+                        PermRow("Alarms on time", if (exact) "Alerts fire at the exact minute" else "Without it Android may delay alerts by several minutes", exact) {
+                            if (Build.VERSION.SDK_INT >= 31) ctx.startActivity(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, Uri.parse("package:" + ctx.packageName)))
+                        }
+                        Hairline()
+                        PermRow("Location, all the time", "For arrive / leave reminders while the app is closed", fine && bg) {
+                            if (!fine) locLauncher.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
+                            else bgLauncher.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+                        }
+                        Hairline()
+                        PermRow("Nearby devices", "For Bluetooth connect / disconnect reminders", bt) {
+                            if (Build.VERSION.SDK_INT >= 31) btLauncher.launch(Manifest.permission.BLUETOOTH_CONNECT)
+                        }
+                        Hairline()
+                        PermRow("Usage access", "For “when I open an app” reminders", usage) {
+                            ctx.startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS))
+                        }
                     }
                 }
             }
